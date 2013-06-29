@@ -55,7 +55,6 @@ class DASOptionParser:
     """
     def __init__(self):
         usage  = "Usage: %prog [options]\n"
-        usage += "For more help please visit https://cmsweb.cern.ch/das/faq"
         self.parser = OptionParser(usage=usage)
         self.parser.add_option("-v", "--verbose", action="store", 
                                type="int", default=0, dest="verbose",
