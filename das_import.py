@@ -16,8 +16,11 @@ import json
 import urllib
 import urllib2
 import httplib
-from   optparse import OptionParser
-from SAMADhi import Dataset
+import string
+import pprint
+from optparse import OptionParser
+from datetime import datetime
+from SAMADhi import Dataset, DbStore
 
 class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
     """
@@ -57,20 +60,27 @@ class DASOptionParser:
         self.parser.add_option("-v", "--verbose", action="store", 
                                type="int", default=0, dest="verbose",
              help="verbose output")
-        self.parser.add_option("--query", action="store", type="string", 
-                               default=False, dest="query",
-             help="specify query for your request")
+        self.parser.add_option("--sample", action="store", type="string", 
+                               default=False, dest="sample",
+             help="specify sample for your request.")
+        self.parser.add_option("--process", action="store", type="string",
+                               default=None, dest="process",
+             help="specify process name. TLatex synthax may be used.")
+        self.parser.add_option("--xsection", action="store", type="float",
+                               default=0.0, dest="xsection",
+             help="specify the cross-section.")
+        self.parser.add_option("--energy", action="store", type="float",
+                               default=0.0, dest="energy",
+             help="specify the centre of mass energy.")
+        self.parser.add_option("--comment", action="store", type="string",
+                               default="", dest="comment",
+             help="comment about the dataset")
         msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
         self.parser.add_option("--host", action="store", type="string", 
                        default='https://cmsweb.cern.ch', dest="host", help=msg)
-        msg  = "start index for returned result set, aka pagination,"
-        msg += " use w/ limit (default is 0)"
+        msg  = "index for returned result"
         self.parser.add_option("--idx", action="store", type="int", 
                                default=0, dest="idx", help=msg)
-        msg  = "number of returned results (default is 10),"
-        msg += " use --limit=0 to show all results"
-        self.parser.add_option("--limit", action="store", type="int", 
-                               default=10, dest="limit", help=msg)
         msg  = 'query waiting threshold in sec, default is 5 minutes'
         self.parser.add_option("--threshold", action="store", type="int",
                                default=300, dest="threshold", help=msg)
@@ -172,33 +182,140 @@ def get_data(host, query, idx, limit, debug, threshold=300, ckey=None,
             del row[key]
     return jsondict['data']
 
+def asDataset(dct):
+  """Convert json into a Dataset"""
+  # definition of the conversion key -> column
+  conversion = { "process":u'process', 
+                 "user_comment":u'comment',
+                 "energy":u'energy',
+                 "nevents":u'nevents',
+                 "cmssw_release":u'release',
+                 "dsize":u'size',
+                 "globaltag":u'tag',
+                 "xsection":u'xsection' }
+  # create the Dataset
+  result = Dataset(dct["name"], dct["datatype"])
+  for column,key in conversion.iteritems():
+    setattr(result,column,dct[key])
+  # special cases
+  result.creation_time = datetime.strptime(dct[u'creation_time'],"%Y-%m-%d %H:%M:%S")
+  return result
+
+def asDict(dataset):
+  """Convert a Dataset to json"""
+  # definition of the conversion key -> column
+  conversion = { "name":u'name',
+                 "datatype":u'datatype',
+                 "process":u'process', 
+                 "user_comment":u'comment',
+                 "energy":u'energy',
+                 "nevents":u'nevents',
+                 "cmssw_release":u'release',
+                 "dsize":u'size',
+                 "globaltag":u'tag',
+                 "xsection":u'xsection' }
+  # create the dict
+  result = {}
+  for column,key in conversion.iteritems():
+    result[key] = getattr(dataset,column)
+  # special cases
+  result[u'creation_time'] = dataset.creation_time.strftime("%Y-%m-%d %H:%M:%S")
+  return result
+  
+def confirm(prompt=None, resp=False):
+    """prompts for yes or no response from the user. Returns True for yes and
+    False for no. 'resp' should be set to the default value assumed by the caller when
+    user simply types ENTER.
+    >>> confirm(prompt='Create Directory?', resp=True)
+    Create Directory? [y]|n: 
+    True
+    >>> confirm(prompt='Create Directory?', resp=False)
+    Create Directory? [n]|y: 
+    False
+    >>> confirm(prompt='Create Directory?', resp=False)
+    Create Directory? [n]|y: y
+    True
+    """
+    if prompt is None:
+        prompt = 'Confirm'
+    if resp:
+        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
+    else:
+        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
+    while True:
+        ans = raw_input(prompt)
+        if not ans:
+            return resp
+        if ans not in ['y', 'Y', 'n', 'N']:
+            print 'please enter y or n.'
+            continue
+        if ans == 'y' or ans == 'Y':
+            return True
+        if ans == 'n' or ans == 'N':
+            return False
+
 def main():
     """Main function"""
+    # get the options
     optmgr  = DASOptionParser()
     opts, _ = optmgr.get_opt()
     host    = opts.host
     debug   = opts.verbose
-    query   = opts.query
-    #TODO: the query should just be a dataset and we should build here the proper DAS query
-    # "dataset=/PYTHIA6_Tauola_TTbar_TuneZ2star_14TeV/Summer12-428SLHCstd_DESIGN42_V17-v3/AODSIM | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype"
+    sample  = opts.sample
+    query1 = "dataset="+sample+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
+    query2 = "release dataset="+sample+" | grep release.name"
     idx     = opts.idx
-    limit   = opts.limit
     thr     = opts.threshold
     ckey    = opts.ckey
     cert    = opts.cert
     das_h   = opts.das_headers
-    jsondict = get_data(host, query, idx, limit, debug, thr, ckey, cert, das_h)
-    print(json.dumps(jsondict))
-    #TODO: here we should do a json.loads with a properly defined object_hook. Example:
-    #>>> def asDataset(dct):
-    #...   if 'dataset' in dct:
-    #...     return dct['dataset'][0]['nevents']
-    #...   return dct
-    #... 
-    #>>> json.loads(jsoncontent, object_hook=asDataset)
-    #[999183]
-    #TODO: complement the object via command line options (process, cross-section, comment)
-
+    # perform the DAS queries
+    jsondict1 = get_data(host, query1, idx, 1, debug, thr, ckey, cert, das_h)
+    jsondict2 = get_data(host, query2, idx, 1, debug, thr, ckey, cert, das_h)
+    # check the result
+    if not(isinstance(jsondict1, list) and 
+           len(jsondict1)==1 and 
+           isinstance(jsondict1[0], dict) and
+           isinstance(jsondict1[0]["dataset"],list) and
+           len(jsondict1[0]["dataset"])==1 and
+           isinstance(jsondict1[0]["dataset"][0],dict) and
+           isinstance(jsondict2, list) and
+           len(jsondict2)==1 and
+           isinstance(jsondict2[0], dict) and
+           isinstance(jsondict2[0]["release"],list) and
+           len(jsondict2[0]["release"])==1 and
+           isinstance(jsondict2[0]["release"][0],dict)):
+      raise RuntimeError("Incorrect response from DAS:\n"+str(jsondict1)+"\n"+str(jsondict2))
+    # prepare the summary json object
+    jsondict1[0]["dataset"][0][u"release"] = jsondict2[0]["release"][0]["name"]
+    if opts.process is None:
+      opts.process = string.split(jsondict1[0]["dataset"][0]["name"],'/',2)[1]
+    jsondict1[0]["dataset"][0].update({ u"process":unicode(opts.process), 
+                                        u"xsection":opts.xsection, u"energy":opts.energy, 
+                                        u"comment":unicode(opts.comment) })
+    # convert the jsondict into a Dataset
+    dataset = asDataset(jsondict1[0]["dataset"][0])
+    # connect to the MySQL database using default credentials
+    dbstore = DbStore()
+    # check that there is no existing entry
+    checkExisting = dbstore.find(Dataset,Dataset.name==dataset.name)
+    if checkExisting.is_empty():
+      pp = pprint.PrettyPrinter()
+      pp.pprint(jsondict1[0]["dataset"][0])
+      if confirm(prompt="Insert into the database?", resp=True):
+        dbstore.add(dataset)
+    else:
+      pp = pprint.PrettyPrinter()
+      prompt  = "Replace existing entry:\n"
+      prompt += pp.pformat(asDict(checkExisting.one()))
+      prompt += "\nby new entry:\n"
+      prompt += pp.pformat(jsondict1[0]["dataset"][0])
+      prompt += "\n?"
+      if confirm(prompt, resp=False):
+        checkExisting.remove()
+        dbstore.add(dataset)
+    # commit
+    dbstore.commit()
 
 #
 # main
