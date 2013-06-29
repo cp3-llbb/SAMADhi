@@ -35,7 +35,10 @@ class Dataset(Storm):
       self.datatype = datatype
     else:
       raise ValueError('data type must be mc or data')
-   
+  
+  #TODO: add __str__ method
+  def __str__(self):
+    return "dummy"
 
 class Sample(Storm):
   """Table to represent one processed sample,
@@ -85,7 +88,11 @@ class Sample(Storm):
           if self.source_sample is not None:
             return self.source_sample.luminosity()
     # in all other cases, it is impossible to compute a number.
-    return 0.
+    return None
+
+  #TODO: add __str__ method
+  def __str__(self):
+    return "dummy"
 
 
 class Event:
