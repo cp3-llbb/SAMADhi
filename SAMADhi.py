@@ -36,9 +36,20 @@ class Dataset(Storm):
     else:
       raise ValueError('data type must be mc or data')
   
-  #TODO: add __str__ method
   def __str__(self):
-    return "dummy"
+    result  = "Dataset #%s:\n"%str(self.dataset_id)
+    result += "  name: %s\n"%str(self.name)
+    result += "  process: %s\n"%str(self.process)
+    result += "  cross-section: %s\n"%str(self.xsection)
+    result += "  number of events: %s\n"%str(self.nevents)
+    result += "  size on disk: %s\n"%str(self.dsize)
+    result += "  CMSSW release: %s\n"%str(self.cmssw_release)
+    result += "  global tag: %s\n"%str(self.globaltag)
+    result += "  type (data or mc): %s\n"%str(self.datatype)
+    result += "  center-of-mass energy: %s\n"%str(self.energy)
+    result += "  creation time (on DAS): %s\n"%str(self.creation_time)
+    result += "  comment: %s\n"%str(self.user_comment)
+    return result
 
 class Sample(Storm):
   """Table to represent one processed sample,
@@ -90,9 +101,20 @@ class Sample(Storm):
     # in all other cases, it is impossible to compute a number.
     return None
 
-  #TODO: add __str__ method
   def __str__(self):
-    return "dummy"
+    result  = "Sample #%s:\n"%str(self.sample_id)
+    result += "  name: %s\n"%str(self.name)
+    result += "  path: %s\n"%str(self.path)
+    result += "  type: %s\n"%str(self.sampletype)
+    result += "  number of processed events: %s\n"%str(self.nevents_processed)
+    result += "  number of events: %s\n"%str(self.nevents)
+    result += "  normalization: %s\n"%str(self.normalization)
+    result += "  (effective) luminosity: %s\n"%str(self.luminosity)
+    result += "  code version: %s\n"%str(self.code_version)
+    result += "  comment: %s\n"%str(self.user_comment)
+    result += "  source dataset: %s\n"%str(self.source_dataset_id)
+    result += "  source sample: %s\n"%str(self.source_sample_id)
+    return result
 
 
 class Event:
