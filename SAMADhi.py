@@ -70,6 +70,7 @@ class Sample(Storm):
   source_dataset = Reference(source_dataset_id, "Dataset.dataset_id")
   source_sample = Reference(source_sample_id, "Sample.sample_id")
   derived_samples = ReferenceSet(sample_id,"Sample.source_sample") 
+  results = ReferenceSet(sample_id,"SampleResult.sample_id","SampleResult.result_id","Result.result_id")
 
   SampleTypes = [ "PAT", "SKIM", "RDS", "NTUPLES", "HISTOS", "OTHER" ]
   
@@ -116,14 +117,65 @@ class Sample(Storm):
     result += "  source sample: %s\n"%str(self.source_sample_id)
     return result
 
+class Result:
+  """Table to represent one physics result,
+     combining several samples."""
+  __storm_table__ = "result"
+  result_id = Int(primary=True)
+  path = Unicode()
+  description = Unicode()
+  samples = ReferenceSet(result_id,"SampleResult.result_id","SampleResult.sample_id","Sample.sample_id")
+  def __init__(self,path,description):
+    self.path = path
+    self.description = description
+  def __str__(self):
+    result  = "Result in %s\n"%path
+    result += description
+    return result
+
+class SampleResult:
+  """Many to many relationship between samples and results."""
+  __storm_table__ = "sampleresult"
+  __storm_primary__ = "sample_id", "result_id"
+  sample_id = Int()
+  result_id = Int()
 
 class Event:
-  pass
+  """Class to represent one unique event"""
+  __storm_table__ = "event"
+  event_id = Int(primary=True)
+  event_number = Int()
+  run_number = Int()
+  dataset_id = Int()
+  dataset = Reference(dataset_id, "Dataset.dataset_id")
+  weights = ReferenceSet(event_id,"Weight.weight_id")
+  def __init__(self,event,run,dataset):
+    self.event_number = event
+    self.run_number = run
+    self.dataset_id = dataset
+
+class MadWeight:
+  """Description of one MadWeight setup,
+     including the process but also the various options like ISR, 
+     width of a resonance, etc."""
+  __storm_table__ = "madweight"
+  process_id = Int(primary=True)
+  name = Unicode()
+  diagram = Unicode()
+  isr = Int()
+  systematics = Unicode()
+  card = Unicode()
 
 class Weight:
-  pass
-
-class MadWeightProcess:
-  pass
-
+  """One weight. It relates one event and one MadWeight setup
+     to one value + uncertainty"""
+  __storm_table__ = "weight"
+  weight_id = Int(primary=True)
+  event_id = Int()
+  madweight_process = Int()
+  value = Float()
+  uncertainty = Float()
+  version = Int()
+  event = Reference(event_id,"Event.event_id")
+  process = Reference(madweight_process,"MadWeight.process_id")
 
