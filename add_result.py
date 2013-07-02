@@ -96,7 +96,7 @@ def main():
     else:
       inputSamples = parse_sample(opts.inputSamples)
     # create and store the relations
-    samples = dbstore.find(Sample,Sample.name.is_in(inputSamples))
+    samples = dbstore.find(Sample,Sample.sample_id.is_in(inputSamples))
     if samples.is_empty():
       dbstore.add(result)
     else:

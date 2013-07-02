@@ -11,7 +11,7 @@ class MyOptionParser:
     Client option parser
     """
     def __init__(self):
-        usage  = "Usage: %prog [options]\n"
+        usage  = "Usage: %prog [options]"
         self.parser = OptionParser(usage=usage)
         self.parser.add_option("--sample", action="store", type="string", 
                                default=None, dest="name",
@@ -52,15 +52,17 @@ class MyOptionParser:
         Returns parse list of options
         """
         opts, _ = self.parser.parse_args()
-        # mandatory arguments
+        # tweaks
         if opts.name is None:
-          self.parser.error("sample name is mandatory")
+          if opts.path[-1]=='/':
+            opts.name = opts.path.split('/')[-2]
+          else:
+            opts.name = opts.path.split('/')[-1]
+        # mandatory arguments
         if opts.path is None:
           self.parser.error("sample path is mandatory")
         if opts.sampletype is None:
           self.parser.error("sample type is mandatory")
-        if opts.nevents_processed is None:
-          self.parser.error("number of processed events is mandatory")
         return opts
 
 def confirm(prompt=None, resp=False):

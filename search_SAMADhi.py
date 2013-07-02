@@ -69,9 +69,9 @@ def main():
     if opts.objid is not None:
       result = dbstore.find(objectClass,objectId==opts.objid)
     elif opts.path is not None:
-      result = dbstore.find(objectClass,objectClass.path==unicode(opts.path))
+      result = dbstore.find(objectClass,objectClass.path.like(unicode(opts.path)))
     elif opts.name is not None:
-      result = dbstore.find(objectClass,objectClass.name==unicode(opts.name))
+      result = dbstore.find(objectClass,objectClass.name.like(unicode(opts.name)))
     else: 
       result = dbstore.find(objectClass)
     # loop and print
@@ -85,7 +85,7 @@ def main():
       else:
         data = result.values(objectId, objectClass.path)
       for dset in data:
-        print "%i\t\t%s"%(dset[0], dset[1])
+        print "%i\t%s"%(dset[0], dset[1])
 
 #
 # main

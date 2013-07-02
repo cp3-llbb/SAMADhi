@@ -86,7 +86,7 @@ class Sample(Storm):
   derived_samples = ReferenceSet(sample_id,"Sample.source_sample") 
   results = ReferenceSet(sample_id,"SampleResult.sample_id","SampleResult.result_id","Result.result_id")
 
-  SampleTypes = [ "PAT", "SKIM", "RDS", "NTUPLES", "HISTOS", "OTHER" ]
+  SampleTypes = [ "PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER" ]
   
   def __init__(self, name, path, sampletype, nevents_processed):
     """Initialize a dataset by name and datatype.
