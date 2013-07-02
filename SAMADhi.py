@@ -35,6 +35,20 @@ class Dataset(Storm):
       self.datatype = datatype
     else:
       raise ValueError('data type must be mc or data')
+
+  def replaceBy(self, dataset):
+    """Replace one entry, but keep the same key"""
+    self.name = dataset.name
+    self.nevents = dataset.nevents
+    self.dsize = dataset.dsize
+    self.process = dataset.process
+    self.xsection = dataset.xsection
+    self.cmssw_release = dataset.cmssw_release
+    self.globaltag = dataset.globaltag
+    self.datatype = dataset.datatype
+    self.user_comment = dataset.user_comment
+    self.energy = dataset.energy
+    self.creation_time = dataset.creation_time
   
   def __str__(self):
     result  = "Dataset #%s:\n"%str(self.dataset_id)
@@ -85,6 +99,20 @@ class Sample(Storm):
     else:
       raise ValueError('sample type %s is unkwown'%sampletype)
 
+  def replaceBy(self, sample):
+    """Replace one entry, but keep the same key"""
+    self.name = sample.name
+    self.path = sample.path
+    self.sampletype = sample.sampletype
+    self.nevents_processed = sample.nevents_processed
+    self.nevents = sample.nevents
+    self.normalization = sample.normalization
+    self.luminosity = sample.luminosity
+    self.code_version = sample.code_version
+    self.user_comment = sample.user_comment
+    self.source_dataset_id = sample.source_dataset_id
+    self.source_sample_id = sample.source_sample_id
+
   def getLuminosity(self):
     """Computes the sample (effective) luminosity"""
     if self.luminosity is not None:
@@ -125,12 +153,18 @@ class Result(Storm):
   path = Unicode()
   description = Unicode()
   samples = ReferenceSet(result_id,"SampleResult.result_id","SampleResult.sample_id","Sample.sample_id")
-  def __init__(self,path,description):
+
+  def __init__(self,path):
     self.path = path
-    self.description = description
+
+  def replaceBy(self, result):
+    """Replace one entry, but keep the same key"""
+    self.path = result.path
+    self.description = result.description
+
   def __str__(self):
-    result  = "Result in %s\n"%path
-    result += description
+    result  = "Result in %s\n"%str(self.path)
+    result += str(self.description)
     return result
 
 class SampleResult(Storm):
@@ -149,6 +183,7 @@ class Event(Storm):
   dataset_id = Int()
   dataset = Reference(dataset_id, "Dataset.dataset_id")
   weights = ReferenceSet(event_id,"Weight.weight_id")
+
   def __init__(self,event,run,dataset):
     self.event_number = event
     self.run_number = run

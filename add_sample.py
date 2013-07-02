@@ -174,19 +174,22 @@ def main():
       print sample
       if confirm(prompt="Insert into the database?", resp=True):
         dbstore.add(sample)
+        # compute the luminosity, if possible
+        if sample.luminosity is None:
+          dbstore.flush()
+          sample.luminosity = sample.getLuminosity()
     else:
+      existing = checkExisting.one()
       prompt  = "Replace existing "
-      prompt += str(checkExisting.one())
+      prompt += str(existing)
       prompt += "by new "
       prompt += str(sample)
       prompt += "?"
       if confirm(prompt, resp=False):
-        checkExisting.remove()
-        dbstore.add(sample)
-    # compute the luminosity, if possible
-    if sample.luminosity is None:
-      dbstore.flush()
-      sample.luminosity = sample.getLuminosity()
+        existing.replaceBy(sample)
+        if existing.luminosity is None:
+          dbstore.flush()
+          existing.luminosity = existing.getLuminosity()
     # commit
     dbstore.commit()
 

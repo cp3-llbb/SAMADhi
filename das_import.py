@@ -299,20 +299,18 @@ def main():
     # check that there is no existing entry
     checkExisting = dbstore.find(Dataset,Dataset.name==dataset.name)
     if checkExisting.is_empty():
-      pp = pprint.PrettyPrinter()
-      pp.pprint(jsondict1[0]["dataset"][0])
+      print dataset
       if confirm(prompt="Insert into the database?", resp=True):
         dbstore.add(dataset)
     else:
-      pp = pprint.PrettyPrinter()
+      existing = checkExisting.one()
       prompt  = "Replace existing entry:\n"
-      prompt += pp.pformat(asDict(checkExisting.one()))
-      prompt += "\nby new entry:\n"
-      prompt += pp.pformat(jsondict1[0]["dataset"][0])
-      prompt += "\n?"
+      print existing
+      prompt += "by new entry:\n"
+      print dataset
+      prompt += "?"
       if confirm(prompt, resp=False):
-        checkExisting.remove()
-        dbstore.add(dataset)
+        existing.replaceBy(dataset)
     # commit
     dbstore.commit()
 

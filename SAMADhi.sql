@@ -47,7 +47,8 @@ CREATE TABLE result
 result_id int NOT NULL AUTO_INCREMENT,
 path varchar(255) NOT NULL,
 description text,
-PRIMARY KEY (result_id)
+PRIMARY KEY (result_id),
+KEY idx_path (path)
 );
 
 CREATE TABLE sampleresult
@@ -75,7 +76,8 @@ diagram varchar(255) NOT NULL,
 isr int NOT NULL,
 systematics varchar(255),
 card text NOT NULL,
-PRIMARY KEY (process_id)
+PRIMARY KEY (process_id),
+KEY idx_name (name)
 );
 
 CREATE TABLE weight
