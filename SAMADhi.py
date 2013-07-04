@@ -182,12 +182,15 @@ class Event(Storm):
   run_number = Int()
   dataset_id = Int()
   dataset = Reference(dataset_id, "Dataset.dataset_id")
-  weights = ReferenceSet(event_id,"Weight.weight_id")
+  weights = ReferenceSet(event_id,"Weight.event_id")
 
   def __init__(self,event,run,dataset):
     self.event_number = event
     self.run_number = run
     self.dataset_id = dataset
+
+  def __str__(self):
+    return "Event %d, Run %d, Dataset %d\n"%(self.event_number,self.run_number,self.dataset_id)
 
 class MadWeight(Storm):
   """Description of one MadWeight setup,
@@ -199,7 +202,44 @@ class MadWeight(Storm):
   diagram = Unicode()
   isr = Int()
   systematics = Unicode()
-  card = Unicode()
+  ident_mw_card = Unicode()
+  ident_card = Unicode()
+  info_card = Unicode()
+  MadWeight_card = Unicode()
+  mapping_card = Unicode()
+  param_card = Unicode()
+  param_card_1 = Unicode()
+  proc_card_mg5 = Unicode()
+  run_card = Unicode()
+  transfer_card = Unicode()
+
+  def __init__(self,name):
+    self.name = name
+  
+  def __str__(self):
+    result  = "MadWeight configuration #%s\n"%str(self.process_id)
+    result += "  name: %s\n"%str(self.name)
+    result += "  diagram: %s\n"%str(self.diagram)
+    result += "  ISR: %s\n"%str(self.isr)
+    result += "  systematics: %s\n"%str(self.systematics)
+    return result
+
+  def replaceBy(self, config):
+    """Replace one entry, but keep the same key"""
+    self.name = config.name
+    self.diagram = config.diagram
+    self.isr = config.isr
+    self.systematics = config.systematics
+    self.ident_mw_card = config.ident_mw_card
+    self.ident_card = config.ident_card
+    self.info_card = config.info_card
+    self.MadWeight_card = config.MadWeight_card
+    self.mapping_card = config.mapping_card
+    self.param_card = config.param_card
+    self.param_card_1 = config.param_card_1
+    self.proc_card_mg5 = config.proc_card_mg5
+    self.run_card = config.run_card
+    self.transfer_card = config.transfer_card
 
 class Weight(Storm):
   """One weight. It relates one event and one MadWeight setup

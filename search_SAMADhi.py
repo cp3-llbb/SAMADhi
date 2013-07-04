@@ -4,7 +4,7 @@
 
 import os
 from optparse import OptionParser
-from SAMADhi import Dataset, Sample, Result, DbStore
+from SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
 
 class MyOptionParser: 
     """
@@ -12,7 +12,7 @@ class MyOptionParser:
     """
     def __init__(self):
         usage  = "Usage: %prog type [options]\n"
-        usage += "Where type is one of dataset, sample, result"
+        usage += "Where type is one of dataset, sample, result, madweight"
         self.parser = OptionParser(usage=usage)
         self.parser.add_option("-l","--long", action="store_true", 
                                dest="longOutput", default=False,
@@ -34,7 +34,7 @@ class MyOptionParser:
         opts, args = self.parser.parse_args()
         if len(args) == 0:
           self.parser.error("must specify the type of item to search for")
-        if args[0] not in ["dataset","sample","result"]:
+        if args[0] not in ["dataset","sample","result","madweight"]:
           self.parser.error("type must be one of dataset, sample, result")
         cnt = 0
         if opts.path is not None: cnt +=1
@@ -46,6 +46,8 @@ class MyOptionParser:
           self.parser.error("cannot search dataset by path")
         if args[0]=="result" and opts.name is not None:
           self.parser.error("cannot search a result by name")
+        if args[0]=="madweight" and opts.path is not None:
+          self.parser.error("cannot search MadWeight setup by path")
         opts.objtype = args[0]
         return opts
 
@@ -63,6 +65,9 @@ def main():
     elif opts.objtype == "sample":
       objectClass = Sample
       objectId = Sample.sample_id
+    elif opts.objtype == "madweight":
+      objectClass = MadWeight
+      objectId = MadWeight.process_id
     else:
       objectClass = Result
       objectId = Result.result_id
