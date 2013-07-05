@@ -3,25 +3,24 @@
 # Script to add a sample to the database
 
 import os
+from pwd import getpwuid
 from optparse import OptionParser
+from datetime import datetime
 from SAMADhi import Dataset, Sample, DbStore
+from userPrompt import confirm, prompt_dataset, prompt_sample
 
 class MyOptionParser: 
     """
     Client option parser
     """
     def __init__(self):
-        usage  = "Usage: %prog [options]"
+        usage  = "Usage: %prog type path [options]\n"
+        usage += "where type is one of PAT, SKIM, RDS, NTUPLES, HISTOS, ...\n"
+        usage += "      and path is the location of the sample on disk"  
         self.parser = OptionParser(usage=usage)
-        self.parser.add_option("--sample", action="store", type="string", 
+        self.parser.add_option("--name", action="store", type="string", 
                                default=None, dest="name",
              help="specify sample name")
-        self.parser.add_option("--path", action="store", type="string", 
-                               default=None, dest="path",
-             help="specify path to sample on disk")
-        self.parser.add_option("--type", action="store", type="string", 
-                               default=None, dest="sampletype",
-             help="specify the type of sample (PAT, SKIM, RDS, NTUPLES, HISTOS, ...")
         self.parser.add_option("--processed", action="store", type="int", 
                                default=None, dest="nevents_processed",
              help="number of processed events (from the input)")
@@ -46,108 +45,44 @@ class MyOptionParser:
         self.parser.add_option("--source_sample", action="store", type="int", 
                                default=None, dest="source_sample_id",
              help="reference to the source sample, if any")
+        self.parser.add_option("-a", "--author", action="store", type="string",
+                               default=None, dest="author",
+             help="author of the result. If not specified, is taken from the path.")
+        self.parser.add_option("-t", "--time", action="store", type="string",
+                               default=None, dest="time",
+             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
 
     def get_opt(self):
         """
         Returns parse list of options
         """
-        opts, _ = self.parser.parse_args()
-        # tweaks
+        opts, args = self.parser.parse_args()
+        # mandatory arguments
+        if len(args) < 2:
+          self.parser.error("type and path are mandatory")
+        opts.sampletype = args[0]
+        opts.path = args[1]
+        # check path
+        if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
+          self.parser.error("%s is not an existing directory"%opts.path)
+        # set author
+        if opts.author is None:
+          opts.author = getpwuid(os.stat(opts.path).st_uid).pw_name
+        # set timestamp
+        if not opts.time is None:
+          if opts.time=="path":
+            opts.datetime = datetime.fromtimestamp(os.path.getctime(opts.path))
+          else:
+            opts.datetime = datetime.strptime(opts.time,'%Y-%m-%d %H:%M:%S')
+        else:
+          opts.datetime = datetime.now()
+        # set name
         if opts.name is None:
           if opts.path[-1]=='/':
             opts.name = opts.path.split('/')[-2]
           else:
             opts.name = opts.path.split('/')[-1]
-        # mandatory arguments
-        if opts.path is None:
-          self.parser.error("sample path is mandatory")
-        if opts.sampletype is None:
-          self.parser.error("sample type is mandatory")
         return opts
-
-def confirm(prompt=None, resp=False):
-    """prompts for yes or no response from the user. Returns True for yes and
-    False for no. 'resp' should be set to the default value assumed by the caller when
-    user simply types ENTER.
-    >>> confirm(prompt='Create Directory?', resp=True)
-    Create Directory? [y]|n: 
-    True
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: 
-    False
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: y
-    True
-    """
-    if prompt is None:
-        prompt = 'Confirm'
-    if resp:
-        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
-    else:
-        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
-    while True:
-        ans = raw_input(prompt)
-        if not ans:
-            return resp
-        if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
-            continue
-        if ans == 'y' or ans == 'Y':
-            return True
-        if ans == 'n' or ans == 'N':
-            return False
-
-def prompt_dataset(sample,store):
-  """prompts for the source dataset among the existing ones"""
-  print "Please select the dataset associated with this sample."
-  # full list of datasets
-  print "Dataset\t\tName"
-  check = store.find(Dataset)
-  all_datasets = check.values(Dataset.dataset_id,Dataset.name)
-  for dset in all_datasets:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # datasets whose name contain the sample name
-  check = store.find(Dataset,Dataset.name.contains_string(sample.name))
-  if not check.is_empty():
-    print "Suggestions:"
-    print "Dataset\t\tName"
-    suggested_datasets = check.values(Dataset.dataset_id,Dataset.name)
-    for dset in suggested_datasets:
-      print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      ans = int(raw_input("Dataset id [None]?"))
-    except:
-      sample.source_dataset_id = None
-      return
-    check = store.find(Dataset,Dataset.dataset_id==ans)
-    if check.is_empty(): continue
-    else: 
-      sample.source_dataset_id = ans
-      return
-
-def prompt_sample(sample,store):
-  """prompts for the source sample among the existing ones"""
-  print "Please select the sample associated with this sample."
-  # full list of samples
-  print "Sample\t\tName"
-  check = store.find(Sample)
-  all_samples = check.values(Sample.sample_id,Sample.name)
-  for dset in all_samples:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      ans = int(raw_input("Sample id [None]?"))
-    except:
-      sample.source_sample_id = None
-      return
-    check = store.find(Sample,Sample.sample_id==ans)
-    if check.is_empty(): continue
-    else: 
-      sample.source_sample_id = ans
-      return
 
 def main():
     """Main function"""
@@ -163,6 +98,8 @@ def main():
     sample.user_comment = unicode(opts.user_comment)
     sample.source_dataset_id = opts.source_dataset_id
     sample.source_sample_id = opts.source_sample_id
+    sample.author = unicode(opts.author)
+    sample.creation_time = opts.datetime
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
     # unless the source is set, prompt the user and present a list to make a choice
@@ -184,9 +121,9 @@ def main():
       existing = checkExisting.one()
       prompt  = "Replace existing "
       prompt += str(existing)
-      prompt += "by new "
+      prompt += "\nby new "
       prompt += str(sample)
-      prompt += "?"
+      prompt += "\n?"
       if confirm(prompt, resp=False):
         existing.replaceBy(sample)
         if existing.luminosity is None:

@@ -3,8 +3,11 @@
 # Script to add a sample to the database
 
 import os
+from pwd import getpwuid
+from datetime import datetime
 from optparse import OptionParser
 from SAMADhi import Sample, Result, DbStore
+from userPrompt import confirm, prompt_samples, parse_samples
 
 class MyOptionParser: 
     """
@@ -19,66 +22,36 @@ class MyOptionParser:
         self.parser.add_option("-d", "--description", action="store", type="string", 
                                default=None, dest="desc",
              help="description of the result")
+        self.parser.add_option("-a", "--author", action="store", type="string", 
+                               default=None, dest="author",
+             help="author of the result. If not specified, is taken from the path.")
+        self.parser.add_option("-t", "--time", action="store", type="string", 
+                               default=None, dest="time",
+             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
 
     def get_opt(self):
         """
         Returns parse list of options
         """
-        opts, path = self.parser.parse_args()
-        opts.path = path
+        opts, args = self.parser.parse_args()
+        # check that the path exists
+        if len(args) < 1:
+          self.parser.error("path is mandatory")
+        opts.path = args[0]
+        if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
+          self.parser.error("%s is not an existing directory"%opts.path)
+        # set author
+        if opts.author is None:
+          opts.author = getpwuid(os.stat(opts.path).st_uid).pw_name
+        # set timestamp
+        if not opts.time is None:
+          if opts.time=="path":
+            opts.datetime = datetime.fromtimestamp(os.path.getctime(opts.path))
+          else:
+            opts.datetime = datetime.strptime(opts.time,'%Y-%m-%d %H:%M:%S')
+        else:
+          opts.datetime = datetime.now()
         return opts
-
-def confirm(prompt=None, resp=False):
-    """prompts for yes or no response from the user. Returns True for yes and
-    False for no. 'resp' should be set to the default value assumed by the caller when
-    user simply types ENTER.
-    >>> confirm(prompt='Create Directory?', resp=True)
-    Create Directory? [y]|n: 
-    True
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: 
-    False
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: y
-    True
-    """
-    if prompt is None:
-        prompt = 'Confirm'
-    if resp:
-        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
-    else:
-        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
-    while True:
-        ans = raw_input(prompt)
-        if not ans:
-            return resp
-        if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
-            continue
-        if ans == 'y' or ans == 'Y':
-            return True
-        if ans == 'n' or ans == 'N':
-            return False
-
-def parse_sample(inputString):
-  return [ int(x) for x in inputString.split(',') ]
-
-def prompt_sample(store):
-  """prompts for the source sample among the existing ones"""
-  print "No source sample defined."
-  print "Please select the samples associated with this result."
-  # full list of samples
-  print "Sample\t\tName"
-  check = store.find(Sample)
-  all_samples = check.values(Sample.sample_id,Sample.name)
-  for dset in all_samples:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      return parse_sample(raw_input("Comma-separated list of sample id [None]?"))
-    except:
-      continue
 
 def main():
     """Main function"""
@@ -88,13 +61,15 @@ def main():
     # build the result from user input
     result = Result(unicode(opts.path))
     result.description = unicode(opts.desc)
+    result.author = unicode(opts.author)
+    result.creation_time = opts.datetime
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
     # unless the source is set, prompt the user and present a list to make a choice
     if opts.inputSamples is None:
-      inputSamples = prompt_sample(dbstore)
+      inputSamples = prompt_samples(dbstore)
     else:
-      inputSamples = parse_sample(opts.inputSamples)
+      inputSamples = parse_samples(opts.inputSamples)
     # create and store the relations
     samples = dbstore.find(Sample,Sample.sample_id.is_in(inputSamples))
     if samples.is_empty():

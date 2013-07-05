@@ -34,7 +34,7 @@ class Dataset(Storm):
     if datatype==u"mc" or datatype==u"data":
       self.datatype = datatype
     else:
-      raise ValueError('data type must be mc or data')
+      raise ValueError('dataset type must be mc or data')
 
   def replaceBy(self, dataset):
     """Replace one entry, but keep the same key"""
@@ -62,7 +62,7 @@ class Dataset(Storm):
     result += "  type (data or mc): %s\n"%str(self.datatype)
     result += "  center-of-mass energy: %s\n"%str(self.energy)
     result += "  creation time (on DAS): %s\n"%str(self.creation_time)
-    result += "  comment: %s\n"%str(self.user_comment)
+    result += "  comment: %s"%str(self.user_comment)
     return result
 
 class Sample(Storm):
@@ -79,6 +79,8 @@ class Sample(Storm):
   luminosity = Float()
   code_version = Unicode()
   user_comment = Unicode()
+  author = Unicode()
+  creation_time = DateTime()
   source_dataset_id = Int()
   source_sample_id  = Int()
   source_dataset = Reference(source_dataset_id, "Dataset.dataset_id")
@@ -112,6 +114,8 @@ class Sample(Storm):
     self.user_comment = sample.user_comment
     self.source_dataset_id = sample.source_dataset_id
     self.source_sample_id = sample.source_sample_id
+    self.author = sample.author
+    self.creation_time = sample.creation_time
 
   def getLuminosity(self):
     """Computes the sample (effective) luminosity"""
@@ -131,7 +135,7 @@ class Sample(Storm):
     return None
 
   def __str__(self):
-    result  = "Sample #%s:\n"%str(self.sample_id)
+    result  = "Sample #%s (created on %s by %s):\n"%(str(self.sample_id),str(self.creation_time),str(self.author))
     result += "  name: %s\n"%str(self.name)
     result += "  path: %s\n"%str(self.path)
     result += "  type: %s\n"%str(self.sampletype)
@@ -142,7 +146,7 @@ class Sample(Storm):
     result += "  code version: %s\n"%str(self.code_version)
     result += "  comment: %s\n"%str(self.user_comment)
     result += "  source dataset: %s\n"%str(self.source_dataset_id)
-    result += "  source sample: %s\n"%str(self.source_sample_id)
+    result += "  source sample: %s"%str(self.source_sample_id)
     return result
 
 class Result(Storm):
@@ -152,6 +156,8 @@ class Result(Storm):
   result_id = Int(primary=True)
   path = Unicode()
   description = Unicode()
+  author = Unicode()
+  creation_time = DateTime()
   samples = ReferenceSet(result_id,"SampleResult.result_id","SampleResult.sample_id","Sample.sample_id")
 
   def __init__(self,path):
@@ -163,7 +169,7 @@ class Result(Storm):
     self.description = result.description
 
   def __str__(self):
-    result  = "Result in %s\n"%str(self.path)
+    result  = "Result in %s \n  created on %s by %s\n  "%(str(self.path),str(self.creation_time),str(self.author))
     result += str(self.description)
     return result
 
@@ -190,7 +196,7 @@ class Event(Storm):
     self.dataset_id = dataset
 
   def __str__(self):
-    return "Event %d, Run %d, Dataset %d\n"%(self.event_number,self.run_number,self.dataset_id)
+    return "Event %d, Run %d, Dataset %d"%(self.event_number,self.run_number,self.dataset_id)
 
 class MadWeight(Storm):
   """Description of one MadWeight setup,
@@ -201,6 +207,8 @@ class MadWeight(Storm):
   name = Unicode()
   diagram = Unicode()
   isr = Int()
+  nwa = Int()
+  higgs_width = Float()
   systematics = Unicode()
   ident_mw_card = Unicode()
   ident_card = Unicode()
@@ -221,7 +229,9 @@ class MadWeight(Storm):
     result += "  name: %s\n"%str(self.name)
     result += "  diagram: %s\n"%str(self.diagram)
     result += "  ISR: %s\n"%str(self.isr)
-    result += "  systematics: %s\n"%str(self.systematics)
+    result += "  NWA: %s\n"%str(self.nwa)
+    result += "  Higgs Width: %s\n"%str(self.higgs_width)
+    result += "  systematics: %s"%str(self.systematics)
     return result
 
   def replaceBy(self, config):
@@ -229,6 +239,8 @@ class MadWeight(Storm):
     self.name = config.name
     self.diagram = config.diagram
     self.isr = config.isr
+    self.nwa = config.nwa
+    self.higgs_width = config.higgs_width
     self.systematics = config.systematics
     self.ident_mw_card = config.ident_mw_card
     self.ident_card = config.ident_card

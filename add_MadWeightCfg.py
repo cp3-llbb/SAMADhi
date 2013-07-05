@@ -5,6 +5,7 @@
 import os
 from optparse import OptionParser
 from SAMADhi import MadWeight, DbStore
+from userPrompt import confirm
 
 cards = [ "ident_card",
           "ident_mw_card",
@@ -46,38 +47,6 @@ class MyOptionParser:
             self.parser.error("%s doesn't look like a MadWeigh Card directory"%opts.path)
         return opts
 
-def confirm(prompt=None, resp=False):
-    """prompts for yes or no response from the user. Returns True for yes and
-    False for no. 'resp' should be set to the default value assumed by the caller when
-    user simply types ENTER.
-    >>> confirm(prompt='Create Directory?', resp=True)
-    Create Directory? [y]|n: 
-    True
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: 
-    False
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: y
-    True
-    """
-    if prompt is None:
-        prompt = 'Confirm'
-    if resp:
-        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
-    else:
-        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
-    while True:
-        ans = raw_input(prompt)
-        if not ans:
-            return resp
-        if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
-            continue
-        if ans == 'y' or ans == 'Y':
-            return True
-        if ans == 'n' or ans == 'N':
-            return False
-
 def main():
     """Main function"""
     # get the options
@@ -98,7 +67,23 @@ def main():
     if len(theCfg)!=1:
       raise RuntimeError("Could not find a unique isr statement in MadWeight_card.dat")
     madweightCfg.isr=int(theCfg[0].split(None,2)[1])
-    
+    # find the NWA configuration parameter
+    theCfg = filter(lambda x:x.startswith("nwa"),map(lambda x:x.lstrip(' \t'),madweightCfg.MadWeight_card.splitlines()))
+    if len(theCfg)!=1:
+      raise RuntimeError("Could not find a unique nwa statement in MadWeight_card.dat")
+    nwa = theCfg[0].split(None,2)[1]
+    if nwa=='F':
+      madweightCfg.nwa=False
+    elif nwa=='T':
+      madweightCfg.nwa=True
+    else:
+      raise RuntimeError("Unrecognized value for the nwa parameter in MadWeight_card.dat: %s"%nwa)
+    # find and add the Higgs weight (can be null, so no error if missing)
+    theCfg = filter(lambda x:x.startswith("DECAY"),map(lambda x:x.lstrip(' \t'),madweightCfg.param_card_1.splitlines()))
+    for cfg in theCfg:
+      fields = cfg.split()
+      if fields[1]=="25":
+        madweightCfg.higgs_width = float(fields[2])
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
     # check that there is no existing entry
@@ -111,9 +96,9 @@ def main():
       existing = checkExisting.one()
       prompt  = "Replace existing "
       prompt += str(existing)
-      prompt += "by new "
+      prompt += "\nby new "
       prompt += str(madweightCfg)
-      prompt += "?"
+      prompt += "\n?"
       if confirm(prompt, resp=False):
         existing.replaceBy(madweightCfg)
     # commit

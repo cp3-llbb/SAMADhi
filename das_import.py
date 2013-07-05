@@ -21,6 +21,7 @@ import pprint
 from optparse import OptionParser
 from datetime import datetime
 from SAMADhi import Dataset, DbStore
+from userPrompt import confirm
 
 class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
     """
@@ -54,14 +55,10 @@ class DASOptionParser:
     DAS cache client option parser
     """
     def __init__(self):
-        usage  = "Usage: %prog [options]\n"
+        usage  = "Usage: %prog dataset [options]\n"
+        usage += "where dataset is the requested CMS dataset as documented on DAS"
         self.parser = OptionParser(usage=usage)
-        self.parser.add_option("-v", "--verbose", action="store", 
-                               type="int", default=0, dest="verbose",
-             help="verbose output")
-        self.parser.add_option("--sample", action="store", type="string", 
-                               default=False, dest="sample",
-             help="specify sample for your request.")
+        # ---- SAMADhi options
         self.parser.add_option("--process", action="store", type="string",
                                default=None, dest="process",
              help="specify process name. TLatex synthax may be used.")
@@ -74,6 +71,7 @@ class DASOptionParser:
         self.parser.add_option("--comment", action="store", type="string",
                                default="", dest="comment",
              help="comment about the dataset")
+        # ---- DAQ options 
         msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
         self.parser.add_option("--host", action="store", type="string", 
                        default='https://cmsweb.cern.ch', dest="host", help=msg)
@@ -95,11 +93,21 @@ class DASOptionParser:
         msg = 'drop DAS headers'
         self.parser.add_option("--das-headers", action="store_true",
                                default=False, dest="das_headers", help=msg)
+        msg = 'verbose output'
+        self.parser.add_option("-v", "--verbose", action="store", 
+                               type="int", default=0, dest="verbose", help=msg)
     def get_opt(self):
         """
         Returns parse list of options
         """
-        return self.parser.parse_args()
+        opts, args = self.parser.parse_args()
+        # mandatory arguments
+        if len(args) < 1:
+          self.parser.error("name and process are mandatory")
+        opts.sample = args[0]
+        if opts.process is None:
+          opts.process = string.split(opts.sample,'/',2)[1]
+        return opts
 
 def fullpath(path):
     "Expand path to full path"
@@ -200,69 +208,16 @@ def asDataset(dct):
   result.creation_time = datetime.strptime(dct[u'creation_time'],"%Y-%m-%d %H:%M:%S")
   return result
 
-def asDict(dataset):
-  """Convert a Dataset to json"""
-  # definition of the conversion key -> column
-  conversion = { "name":u'name',
-                 "datatype":u'datatype',
-                 "process":u'process', 
-                 "user_comment":u'comment',
-                 "energy":u'energy',
-                 "nevents":u'nevents',
-                 "cmssw_release":u'release',
-                 "dsize":u'size',
-                 "globaltag":u'tag',
-                 "xsection":u'xsection' }
-  # create the dict
-  result = {}
-  for column,key in conversion.iteritems():
-    result[key] = getattr(dataset,column)
-  # special cases
-  result[u'creation_time'] = dataset.creation_time.strftime("%Y-%m-%d %H:%M:%S")
-  return result
-  
-def confirm(prompt=None, resp=False):
-    """prompts for yes or no response from the user. Returns True for yes and
-    False for no. 'resp' should be set to the default value assumed by the caller when
-    user simply types ENTER.
-    >>> confirm(prompt='Create Directory?', resp=True)
-    Create Directory? [y]|n: 
-    True
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: 
-    False
-    >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: y
-    True
-    """
-    if prompt is None:
-        prompt = 'Confirm'
-    if resp:
-        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
-    else:
-        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
-    while True:
-        ans = raw_input(prompt)
-        if not ans:
-            return resp
-        if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
-            continue
-        if ans == 'y' or ans == 'Y':
-            return True
-        if ans == 'n' or ans == 'N':
-            return False
-
 def main():
     """Main function"""
     # get the options
     optmgr  = DASOptionParser()
-    opts, _ = optmgr.get_opt()
+    opts    = optmgr.get_opt()
     host    = opts.host
     debug   = opts.verbose
     sample  = opts.sample
-    query1 = "dataset="+sample+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
-    query2 = "release dataset="+sample+" | grep release.name"
+    query1  = "dataset="+sample+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
+    query2  = "release dataset="+sample+" | grep release.name"
     idx     = opts.idx
     thr     = opts.threshold
     ckey    = opts.ckey
@@ -287,8 +242,6 @@ def main():
       raise RuntimeError("Incorrect response from DAS:\n"+str(jsondict1)+"\n"+str(jsondict2))
     # prepare the summary json object
     jsondict1[0]["dataset"][0][u"release"] = jsondict2[0]["release"][0]["name"]
-    if opts.process is None:
-      opts.process = string.split(jsondict1[0]["dataset"][0]["name"],'/',2)[1]
     jsondict1[0]["dataset"][0].update({ u"process":unicode(opts.process), 
                                         u"xsection":opts.xsection, u"energy":opts.energy, 
                                         u"comment":unicode(opts.comment) })
