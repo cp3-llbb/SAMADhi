@@ -208,6 +208,7 @@ class MadWeight(Storm):
   diagram = Unicode()
   isr = Int()
   nwa = Int()
+  cm_energy = Float()
   higgs_width = Float()
   systematics = Unicode()
   ident_mw_card = Unicode()
@@ -220,6 +221,8 @@ class MadWeight(Storm):
   proc_card_mg5 = Unicode()
   run_card = Unicode()
   transfer_card = Unicode()
+  transfer_fctVersion = Unicode()
+  transfer_function = Unicode()
 
   def __init__(self,name):
     self.name = name
@@ -230,6 +233,8 @@ class MadWeight(Storm):
     result += "  diagram: %s\n"%str(self.diagram)
     result += "  ISR: %s\n"%str(self.isr)
     result += "  NWA: %s\n"%str(self.nwa)
+    result += "  Center of mass energy: %s\n"%str(self.cm_energy)
+    result += "  Transfert functions: %s\n"%str(self.transfer_fctVersion)
     result += "  Higgs Width: %s\n"%str(self.higgs_width)
     result += "  systematics: %s"%str(self.systematics)
     return result
@@ -252,6 +257,9 @@ class MadWeight(Storm):
     self.proc_card_mg5 = config.proc_card_mg5
     self.run_card = config.run_card
     self.transfer_card = config.transfer_card
+    self.cm_energy = config.cm_energy
+    self.transfer_fctVersion = config.transfer_fctVersion
+    self.transfer_function = config.transfer_function
 
 class Weight(Storm):
   """One weight. It relates one event and one MadWeight setup

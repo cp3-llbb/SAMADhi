@@ -25,7 +25,7 @@ class MyOptionParser:
     def __init__(self):
         usage  = "Usage: %prog name path [options]\n"
         usage += "  where name is the configuration name\n"
-        usage += "  and where path points to the MadWeight Cards directory"
+        usage += "  and where path points to the MadWeight directory"
         self.parser = OptionParser(usage=usage)
         self.parser.add_option("-s", "--syst", action="store", type="string",
                                default="", dest="syst",
@@ -43,8 +43,10 @@ class MyOptionParser:
         if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
           self.parser.error("%s is not an existing directory"%opts.path)
         for card in cards:
-          if not os.path.exists("%s/%s.dat"%(opts.path,card)):
-            self.parser.error("%s doesn't look like a MadWeigh Card directory"%opts.path)
+          if not os.path.exists("%s/Cards/%s.dat"%(opts.path,card)):
+            self.parser.error("%s doesn't look like a MadWeigh directory"%opts.path)
+        if not os.path.exists("%s/Source/MadWeight/transfer_function/Transfer_FctVersion.txt"%opts.path):
+            self.parser.error("%s/Source/MadWeight/transfer_function/Transfer_FctVersion.txt does not exist!"%opts.path)
         return opts
 
 def main():
@@ -55,8 +57,14 @@ def main():
     # build the configuration from user input
     madweightCfg = MadWeight(unicode(opts.name))
     for card in cards:
-      setattr(madweightCfg, card, unicode(open(opts.path+"/"+card+".dat","r").read()))
+      setattr(madweightCfg, card, unicode(open(opts.path+"/Cards/"+card+".dat","r").read()))
     madweightCfg.systematics = unicode(opts.syst)
+    # get the transfert functions
+    madweightCfg.transfer_fctVersion = unicode(open('%s/Source/MadWeight/transfer_function/Transfer_FctVersion.txt'%opts.path,"r").read().strip('\n'))
+    theCfg = madweightCfg.transfer_fctVersion.split(':')[0]
+    if not os.path.exists("%s/Source/MadWeight/transfer_function/data/TF_%s.dat"%(opts.path,theCfg)):
+      raise RuntimeError("Could not find the transfert functions TF_%s.dat"%theCfg)
+    madweightCfg.transfer_function = unicode(open("%s/Source/MadWeight/transfer_function/data/TF_%s.dat"%(opts.path,theCfg),"r").read())
     # find the generate line(s)
     theCfg = filter(lambda x:x.startswith("generate"),map(lambda x:x.lstrip(' \t'),madweightCfg.proc_card_mg5.splitlines()))
     if len(theCfg)!=1:
@@ -78,12 +86,21 @@ def main():
       madweightCfg.nwa=True
     else:
       raise RuntimeError("Unrecognized value for the nwa parameter in MadWeight_card.dat: %s"%nwa)
+    # find the beam energy and store cm energy in TeV
+    theCfg = filter(lambda x:"ebeam1" in x,madweightCfg.run_card.splitlines())
+    try:
+      madweightCfg.cm_energy = float(theCfg[0].split()[0])*0.002
+    except:
+      print "Cannot find the beam energy in the run card"
+      raise
     # find and add the Higgs weight (can be null, so no error if missing)
     theCfg = filter(lambda x:x.startswith("DECAY"),map(lambda x:x.lstrip(' \t'),madweightCfg.param_card_1.splitlines()))
     for cfg in theCfg:
       fields = cfg.split()
       if fields[1]=="25":
         madweightCfg.higgs_width = float(fields[2])
+#TODO: temporary
+    print madweightCfg
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
     # check that there is no existing entry
