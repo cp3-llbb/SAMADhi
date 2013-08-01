@@ -88,7 +88,7 @@ def main():
       if opts.objtype != "result":
         data = result.values(objectId, objectClass.name)
       else:
-        data = result.values(objectId, objectClass.path)
+        data = result.values(objectId, objectClass.description)
       for dset in data:
         print "%i\t%s"%(dset[0], dset[1])
 
