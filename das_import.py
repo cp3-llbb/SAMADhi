@@ -111,10 +111,8 @@ class DASOptionParser:
 
 def fullpath(path):
     "Expand path to full path"
-    if  path and path[0] == '~':
-        path = path.replace('~', '')
-        path = path[1:] if path[0] == '/' else path
-        path = os.path.join(os.environ['HOME'], path)
+    if path:
+      path = os.path.abspath(os.path.expandvars(os.path.expanduser(path)))
     return path
 
 def get_data(host, query, idx, limit, debug, threshold=300, ckey=None,
@@ -258,10 +256,10 @@ def main():
     else:
       existing = checkExisting.one()
       prompt  = "Replace existing entry:\n"
-      print existing
-      prompt += "by new entry:\n"
-      print dataset
-      prompt += "?"
+      prompt += str(existing)
+      prompt += "\nby new entry:\n"
+      prompt += str(dataset)
+      prompt += "\n?"
       if confirm(prompt, resp=False):
         existing.replaceBy(dataset)
     # commit
