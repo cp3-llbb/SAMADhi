@@ -61,7 +61,7 @@ class MyOptionParser:
         if len(args) < 2:
           self.parser.error("type and path are mandatory")
         opts.sampletype = args[0]
-        opts.path = args[1]
+        opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(args[1])))
         # check path
         if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
           self.parser.error("%s is not an existing directory"%opts.path)
@@ -107,6 +107,22 @@ def main():
       prompt_dataset(sample,dbstore)
     if sample.source_sample_id is None:
       prompt_sample(sample,dbstore)
+    # check that source sample and dataset exist
+    if sample.source_dataset_id is not None:
+      checkExisting = dbstore.find(Dataset,Dataset.dataset_id==sample.source_dataset_id)
+      if checkExisting.is_empty():
+        raise IndexError("No dataset with such index: %d"%sample.source_dataset_id)
+    if sample.source_sample_id is not None:
+      checkExisting = dbstore.find(Sample,Sample.sample_id==sample.source_sample_id)
+      if checkExisting.is_empty():
+        raise IndexError("No sample with such index: %d"%sample.source_sample_id)
+    # if opts.nevents is not set, take #events from source sample (if set) or from source dataset (if set) in that order
+    if sample.nevents_processed is None and sample.source_sample_id is not None:
+      sample.nevents_processed = dbstore.find(Sample,Sample.sample_id==sample.source_sample_id).one().nevents_processed
+    if sample.nevents_processed is None and sample.source_dataset_id is not None:
+      sample.nevents_processed = dbstore.find(Dataset,Dataset.dataset_id==sample.source_dataset_id).one().nevents
+    if sample.nevents_processed is None:
+      print "Warning: Number of processed events not given, and no way to guess it."
     # check that there is no existing entry
     checkExisting = dbstore.find(Sample,Sample.name==sample.name)
     if checkExisting.is_empty():

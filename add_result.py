@@ -37,9 +37,9 @@ class MyOptionParser:
         # check that the path exists
         if len(args) < 1:
           self.parser.error("path is mandatory")
-        opts.path = args[0]
-        if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
-          self.parser.error("%s is not an existing directory"%opts.path)
+        opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(args[0])))
+        if not os.path.exists(opts.path) or not ( os.path.isdir(opts.path) or os.path.isfile(opts.path)) :
+          self.parser.error("%s is not an existing file or directory"%opts.path)
         # set author
         if opts.author is None:
           opts.author = getpwuid(os.stat(opts.path).st_uid).pw_name

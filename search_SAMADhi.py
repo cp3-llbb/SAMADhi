@@ -37,7 +37,9 @@ class MyOptionParser:
         if args[0] not in ["dataset","sample","result","madweight"]:
           self.parser.error("type must be one of dataset, sample, result")
         cnt = 0
-        if opts.path is not None: cnt +=1
+        if opts.path is not None: 
+          cnt +=1
+          opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(opts.path)))
         if opts.name is not None: cnt +=1
         if opts.objid is not None: cnt +=1
         if cnt>1:
