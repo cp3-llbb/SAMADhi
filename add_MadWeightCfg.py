@@ -27,9 +27,6 @@ class MyOptionParser:
         usage += "  where name is the configuration name\n"
         usage += "  and where path points to the MadWeight directory"
         self.parser = OptionParser(usage=usage)
-        self.parser.add_option("-s", "--syst", action="store", type="string",
-                               default="", dest="syst",
-             help="string identifying the systematics variation of the weight")
 
     def get_opt(self):
         """
@@ -58,7 +55,6 @@ def main():
     madweightCfg = MadWeight(unicode(opts.name))
     for card in cards:
       setattr(madweightCfg, card, unicode(open(opts.path+"/Cards/"+card+".dat","r").read()))
-    madweightCfg.systematics = unicode(opts.syst)
     # get the transfert functions
     madweightCfg.transfer_fctVersion = unicode(open('%s/Source/MadWeight/transfer_function/Transfer_FctVersion.txt'%opts.path,"r").read().strip('\n'))
     theCfg = madweightCfg.transfer_fctVersion.split(':')[0]
@@ -99,8 +95,6 @@ def main():
       fields = cfg.split()
       if fields[1]=="25":
         madweightCfg.higgs_width = float(fields[2])
-#TODO: temporary
-    print madweightCfg
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
     # check that there is no existing entry

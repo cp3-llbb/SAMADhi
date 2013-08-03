@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS weight;
+DROP TABLE IF EXISTS madweightrun;
 DROP TABLE IF EXISTS madweight;
 DROP TABLE IF EXISTS event;
 DROP TABLE IF EXISTS sampleresult;
@@ -32,7 +33,7 @@ path varchar(255) NOT NULL,
 sampletype varchar(255) NOT NULL,
 nevents_processed int,
 nevents int,
-normalization float DEFAULT 1.0,
+normalization float NOT NULL DEFAULT 1.0, 
 luminosity float,
 code_version varchar(255),
 user_comment text,
@@ -41,7 +42,9 @@ creation_time timestamp,
 source_dataset_id int,
 source_sample_id int,
 PRIMARY KEY (sample_id),
-KEY idx_name (name)
+KEY idx_name (name),
+FOREIGN KEY (source_dataset_id) REFERENCES dataset(dataset_id),
+FOREIGN KEY (source_sample_id) REFERENCES sample(sample_id)
 );
 
 CREATE TABLE result
@@ -59,7 +62,9 @@ CREATE TABLE sampleresult
 (
 sample_id int NOT NULL,
 result_id int NOT NULL,
-CONSTRAINT SR_ID PRIMARY KEY (sample_id,result_id)
+CONSTRAINT SR_ID PRIMARY KEY (sample_id,result_id),
+FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
+FOREIGN KEY (result_id) REFERENCES result(result_id)
 );
 
 CREATE TABLE event
@@ -81,7 +86,6 @@ isr int NOT NULL,
 nwa int NOT NULL,
 cm_energy float NOT NULL,
 higgs_width float,
-systematics varchar(255),
 ident_mw_card text NOT NULL,
 ident_card text NOT NULL,
 info_card text NOT NULL,
@@ -98,15 +102,31 @@ PRIMARY KEY (process_id),
 KEY idx_name (name)
 );
 
+CREATE TABLE madweightrun
+(
+mwrun_id int NOT NULL AUTO_INCREMENT,
+madweight_process int NOT NULL,
+lhco_sample_id int NOT NULL,
+systematics varchar(255),
+version tinyint NOT NULL DEFAULT 1,
+user_comment text,
+creation_time timestamp,
+PRIMARY KEY (mwrun_id),
+UNIQUE INDEX (madweight_process,lhco_sample_id,systematics,version),
+FOREIGN KEY (madweight_process) REFERENCES madweight(process_id),
+FOREIGN KEY (lhco_sample_id) REFERENCES sample(sample_id)
+);
+
 CREATE TABLE weight
 (
 weight_id BIGINT NOT NULL AUTO_INCREMENT,
 event_id BIGINT NOT NULL,
-madweight_process int NOT NULL,
+madweight_run int NOT NULL,
 value float,
 uncertainty float,
-version tinyint DEFAULT 1,
 PRIMARY KEY (weight_id),
-UNIQUE INDEX (event_id,madweight_process,version)
+UNIQUE INDEX (event_id,madweight_run),
+FOREIGN KEY (event_id) REFERENCES event(event_id),
+FOREIGN KEY (madweight_run) REFERENCES madweightrun(mwrun_id)
 );
 

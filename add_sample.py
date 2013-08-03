@@ -50,7 +50,7 @@ class MyOptionParser:
              help="author of the result. If not specified, is taken from the path.")
         self.parser.add_option("-t", "--time", action="store", type="string",
                                default=None, dest="time",
-             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
+             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS. Default is current time.")
 
     def get_opt(self):
         """
@@ -63,7 +63,7 @@ class MyOptionParser:
         opts.sampletype = args[0]
         opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(args[1])))
         # check path
-        if not os.path.exists(opts.path) or not os.path.isdir(opts.path):
+        if not os.path.exists(opts.path) or not ( os.path.isdir(opts.path) or os.path.isfile(opts.path)) :
           self.parser.error("%s is not an existing directory"%opts.path)
         # set author
         if opts.author is None:

@@ -18,7 +18,7 @@ import urllib2
 import httplib
 import string
 import pprint
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 from datetime import datetime
 from SAMADhi import Dataset, DbStore
 from userPrompt import confirm
@@ -66,36 +66,39 @@ class DASOptionParser:
                                default=0.0, dest="xsection",
              help="specify the cross-section.")
         self.parser.add_option("--energy", action="store", type="float",
-                               default=0.0, dest="energy",
+                               default=None, dest="energy",
              help="specify the centre of mass energy.")
         self.parser.add_option("--comment", action="store", type="string",
                                default="", dest="comment",
              help="comment about the dataset")
-        # ---- DAQ options 
+        # ---- DAS options 
+        das_group = OptionGroup(self.parser,"DAS options",
+                                "The following options control the communication with the DAS server")
         msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
-        self.parser.add_option("--host", action="store", type="string", 
+        das_group.add_option("--host", action="store", type="string", 
                        default='https://cmsweb.cern.ch', dest="host", help=msg)
         msg  = "index for returned result"
-        self.parser.add_option("--idx", action="store", type="int", 
+        das_group.add_option("--idx", action="store", type="int", 
                                default=0, dest="idx", help=msg)
         msg  = 'query waiting threshold in sec, default is 5 minutes'
-        self.parser.add_option("--threshold", action="store", type="int",
+        das_group.add_option("--threshold", action="store", type="int",
                                default=300, dest="threshold", help=msg)
         msg  = 'specify private key file name'
-        self.parser.add_option("--key", action="store", type="string",
+        das_group.add_option("--key", action="store", type="string",
                                default="", dest="ckey", help=msg)
         msg  = 'specify private certificate file name'
-        self.parser.add_option("--cert", action="store", type="string",
+        das_group.add_option("--cert", action="store", type="string",
                                default="", dest="cert", help=msg)
         msg = 'specify number of retries upon busy DAS server message'
-        self.parser.add_option("--retry", action="store", type="string",
+        das_group.add_option("--retry", action="store", type="string",
                                default=0, dest="retry", help=msg)
         msg = 'drop DAS headers'
-        self.parser.add_option("--das-headers", action="store_true",
+        das_group.add_option("--das-headers", action="store_true",
                                default=False, dest="das_headers", help=msg)
         msg = 'verbose output'
-        self.parser.add_option("-v", "--verbose", action="store", 
+        das_group.add_option("-v", "--verbose", action="store", 
                                type="int", default=0, dest="verbose", help=msg)
+        self.parser.add_option_group(das_group)
     def get_opt(self):
         """
         Returns parse list of options
@@ -103,10 +106,18 @@ class DASOptionParser:
         opts, args = self.parser.parse_args()
         # mandatory arguments
         if len(args) < 1:
-          self.parser.error("name and process are mandatory")
+          self.parser.error("Name and process are mandatory.")
+        if len(args) > 1:
+          self.parser.error("Too many arguments.")
         opts.sample = args[0]
         if opts.process is None:
-          opts.process = string.split(opts.sample,'/',2)[1]
+          splitString = string.split(opts.sample,'/',2)
+          if len(splitString)>1:
+            opts.process = string.split(opts.sample,'/',2)[1]
+        if opts.energy is None:
+          energyRe = re.search(r"([\d.]+)TeV",opts.sample)
+          if not energyRe is None:
+            opts.energy = float(energyRe.group(1))
         return opts
 
 def fullpath(path):

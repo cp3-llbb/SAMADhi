@@ -60,7 +60,7 @@ class Dataset(Storm):
     result += "  CMSSW release: %s\n"%str(self.cmssw_release)
     result += "  global tag: %s\n"%str(self.globaltag)
     result += "  type (data or mc): %s\n"%str(self.datatype)
-    result += "  center-of-mass energy: %s\n"%str(self.energy)
+    result += "  center-of-mass energy: %s TeV\n"%str(self.energy)
     result += "  creation time (on DAS): %s\n"%str(self.creation_time)
     result += "  comment: %s"%str(self.user_comment)
     return result
@@ -210,7 +210,6 @@ class MadWeight(Storm):
   nwa = Int()
   cm_energy = Float()
   higgs_width = Float()
-  systematics = Unicode()
   ident_mw_card = Unicode()
   ident_card = Unicode()
   info_card = Unicode()
@@ -236,7 +235,6 @@ class MadWeight(Storm):
     result += "  Center of mass energy: %s\n"%str(self.cm_energy)
     result += "  Transfert functions: %s\n"%str(self.transfer_fctVersion)
     result += "  Higgs Width: %s\n"%str(self.higgs_width)
-    result += "  systematics: %s"%str(self.systematics)
     return result
 
   def replaceBy(self, config):
@@ -246,7 +244,6 @@ class MadWeight(Storm):
     self.isr = config.isr
     self.nwa = config.nwa
     self.higgs_width = config.higgs_width
-    self.systematics = config.systematics
     self.ident_mw_card = config.ident_mw_card
     self.ident_card = config.ident_card
     self.info_card = config.info_card
@@ -261,16 +258,45 @@ class MadWeight(Storm):
     self.transfer_fctVersion = config.transfer_fctVersion
     self.transfer_function = config.transfer_function
 
+class MadWeightRun(Storm):
+  """One run of MadWeight. It relates a MW setup to a LHCO file
+     and may contain a systematics flag + comment."""
+  __storm_table__ = "madweightrun"
+  mwrun_id = Int(primary=True)
+  madweight_process = Int()
+  lhco_sample_id = Int()
+  creation_time = DateTime()
+  systematics = Unicode()
+  user_comment = Unicode()
+  version = Int()
+  process = Reference(madweight_process,"MadWeight.process_id")
+  lhco_sample = Reference(lhco_sample_id, "Sample.sample_id")
+
+  def __init__(self,madweight_process,lhco_sample_id):
+    self.madweight_process = madweight_process
+    self.lhco_sample_id = lhco_sample_id
+
+  def __str__(self):
+    result  = "MadWeight run #%s performed on %s\n"%(str(self.mwrun_id),str(self.creation_time))
+    result += "  MadWeight process: %s (id %s)\n"%(str(self.process.name),str(self.madweight_process))
+    result += "  LHCO sample: %s (id %s)\n"%(str(self.lhco_sample.name),str(self.lhco_sample_id))
+    result += "  Systematics: %s\n"%str(self.systematics)
+    result += "  Comment: %s\n"%str(self.user_comment)
+    result += "  Version: %s\n"%str(self.version)
+    return result
+
 class Weight(Storm):
   """One weight. It relates one event and one MadWeight setup
      to one value + uncertainty"""
   __storm_table__ = "weight"
   weight_id = Int(primary=True)
   event_id = Int()
-  madweight_process = Int()
+  madweight_run = Int()
   value = Float()
   uncertainty = Float()
-  version = Int()
   event = Reference(event_id,"Event.event_id")
-  process = Reference(madweight_process,"MadWeight.process_id")
+  mw_run = Reference(madweight_run,"MadWeightRun.mwrun_id")
+
+  def __str__(self):
+    return "%f +/- %f"%(self.value,self.uncertainty)
 
