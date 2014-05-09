@@ -236,8 +236,19 @@ def main():
     jsondict1 = get_data(host, query1, idx, 1, debug, thr, ckey, cert, das_h)
     jsondict2 = get_data(host, query2, idx, 1, debug, thr, ckey, cert, das_h)
     # check the result
-    if not(isinstance(jsondict1, list) and 
-           len(jsondict1)==1 and 
+    if len(jsondict1)>1: print "Error: more than one element in jsondict1..."
+    tmp = [{u'dataset' : [{}]},]
+    for i in range(0,len(jsondict1[0]["dataset"])):
+        if jsondict1[0]["dataset"][i]["name"]==sample:
+            for key in jsondict1[0]["dataset"][i]:
+                tmp[0]["dataset"][0][key] = jsondict1[0]["dataset"][i][key]
+    if not "tag" in tmp[0]["dataset"][0]:
+        print "global tag not found: looks to be always the case now, value will be 'None'"
+        tmp[0]["dataset"][0][u'tag']=None 
+    print "****das query:", tmp
+    jsondict1 = tmp
+    if not(isinstance(jsondict1, list) and
+           len(jsondict1)==1 and
            isinstance(jsondict1[0], dict) and
            isinstance(jsondict1[0]["dataset"],list) and
            len(jsondict1[0]["dataset"])==1 and
