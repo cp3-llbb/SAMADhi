@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/nfs/soft/python/python-2.7.5-sl6_amd64_gcc44/bin/python
 
 # This little script allows the importation of sample data from 
 # the CMS Data Aggregation System (DAS).
@@ -61,9 +61,9 @@ class DASOptionParser:
         # ---- SAMADhi options
         self.parser.add_option("--process", action="store", type="string",
                                default=None, dest="process",
-             help="specify process name. TLatex synthax may be used.")
+             help="specify process name. TLatex syntax may be used.")
         self.parser.add_option("--xsection", action="store", type="float",
-                               default=0.0, dest="xsection",
+                               default=1.0, dest="xsection",
              help="specify the cross-section.")
         self.parser.add_option("--energy", action="store", type="float",
                                default=None, dest="energy",
@@ -227,6 +227,7 @@ def main():
     sample  = opts.sample
     query1  = "dataset="+sample+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
     query2  = "release dataset="+sample+" | grep release.name"
+    query3  = "config dataset="+sample+" | grep config.global_tag,config.name=cmsRun"
     idx     = opts.idx
     thr     = opts.threshold
     ckey    = opts.ckey
@@ -235,6 +236,7 @@ def main():
     # perform the DAS queries
     jsondict1 = get_data(host, query1, idx, 1, debug, thr, ckey, cert, das_h)
     jsondict2 = get_data(host, query2, idx, 1, debug, thr, ckey, cert, das_h)
+    jsondict3 = get_data(host, query3, idx, 1, debug, thr, ckey, cert, das_h)
     # check the result
     if len(jsondict1)>1: print "Error: more than one element in jsondict1..."
     tmp = [{u'dataset' : [{}]},]
@@ -243,7 +245,8 @@ def main():
             for key in jsondict1[0]["dataset"][i]:
                 tmp[0]["dataset"][0][key] = jsondict1[0]["dataset"][i][key]
     if not "tag" in tmp[0]["dataset"][0]:
-        print "global tag not found: looks to be always the case now, value will be 'None'"
+#        print "global tag not found: looks to be always the case now, value will be 'None'"
+# the global tag info changed place, see below
         tmp[0]["dataset"][0][u'tag']=None 
     print "****das query:", tmp
     jsondict1 = tmp
@@ -258,10 +261,19 @@ def main():
            isinstance(jsondict2[0], dict) and
            isinstance(jsondict2[0]["release"],list) and
            len(jsondict2[0]["release"])==1 and
-           isinstance(jsondict2[0]["release"][0],dict)):
-      raise RuntimeError("Incorrect response from DAS:\n"+str(jsondict1)+"\n"+str(jsondict2))
+           isinstance(jsondict2[0]["release"][0],dict) and
+           isinstance(jsondict3, list) and
+           len(jsondict3) > 0 and
+           isinstance(jsondict3[0], dict) and
+           len(jsondict3[0]) > 0 and
+           isinstance(jsondict3[0]['config'], list) and
+           len(jsondict3[0]['config']) > 0 and
+           isinstance(jsondict3[0]['config'][0], dict) and
+           len(jsondict3[0]['config'][0]) > 0):
+      raise RuntimeError("Incorrect response from DAS:\n"+str(jsondict1)+"\n"+str(jsondict2)+"\n"+str(jsondict3))
     # prepare the summary json object
     jsondict1[0]["dataset"][0][u"release"] = jsondict2[0]["release"][0]["name"]
+    jsondict1[0]["dataset"][0][u'tag'] = jsondict3[0]['config'][0]['global_tag']
     jsondict1[0]["dataset"][0].update({ u"process":unicode(opts.process), 
                                         u"xsection":opts.xsection, u"energy":opts.energy, 
                                         u"comment":unicode(opts.comment) })
