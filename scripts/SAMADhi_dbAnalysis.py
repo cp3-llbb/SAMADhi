@@ -163,7 +163,19 @@ def analyzeSampleStatistics(dbstore,opts):
     stats["sampleNeventsTimeprof"] = sample_nevents_time
     stats["sampleNeventsProcessedTimeprof"] = sample_nevents_processed_time
     stats["samplesTimeprof"] = samples_time
-    #TODO: ROOT output (three TGraphs)
+    sampleNeventsTimeprof_graph = ROOT.TGraph(len(sample_nevents_time))
+    sampleNeventsProcessedTimeprof_graph = ROOT.TGraph(len(sample_nevents_processed_time))
+    samplesTimeprof_graph = ROOT.TGraph(len(samples_time))
+    for i,s in enumerate(sample_nevents_time):
+        sampleNeventsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
+    for i,s in enumerate(sample_nevents_processed_time):
+        sampleNeventsProcessedTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
+    for i,s in enumerate(samples_time):
+        samplesTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
+    if not opts.dryRun:
+        sampleNeventsTimeprof_graph.Write("sampleNeventsTimeprof_graph")
+        sampleNeventsProcessedTimeprof_graph.Write("sampleNeventsProcessedTimeprof_graph")
+        samplesTimeprof_graph.Write("samplesTimeprof_graph")
     # unfortunately, TBufferJSON is not available in CMSSW (no libRHttp) -> no easy way to export to JSON
     # the JSON format for highcharts data is [ [x1,y1], [x2,y2], ... ]
     data = []
