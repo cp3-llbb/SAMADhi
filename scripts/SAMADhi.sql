@@ -6,6 +6,20 @@ DROP TABLE IF EXISTS sampleresult;
 DROP TABLE IF EXISTS result;
 DROP TABLE IF EXISTS sample;
 DROP TABLE IF EXISTS dataset;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE  users
+(
+userID INT( 11 ) NOT NULL AUTO_INCREMENT ,
+userName VARCHAR( 32 ) NOT NULL ,
+password VARCHAR( 32 ) NOT NULL ,
+role ENUM('READ ONLY','NO ACCESS','EDIT','DELETE','USER','ADMIN') DEFAULT 'READ ONLY',
+PRIMARY KEY (userID) ,
+UNIQUE (userName)
+);
+
+INSERT INTO 'users' (`userName`,`password`,`role`)
+VALUES ('adminUser','050f02a6a1221639d03d1ad935ff7fbf','ADMIN');
 
 CREATE TABLE dataset
 (
