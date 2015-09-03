@@ -3,7 +3,8 @@
 # Script to do basic checks to the database and output statistics on usage and issues
 
 import os,errno,json
-#import ROOT
+import ROOT
+ROOT.gROOT.SetBatch()
 from optparse import OptionParser
 from storm.info import get_cls_info
 from datetime import date
@@ -98,28 +99,89 @@ def checkSampleConsistency(dbstore,opts):
 
 def analyzeSampleStatistics(dbstore,opts):
     stats = {}
+    # ROOT output
+    if not opts.dryRun:
+      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
     #authors statistics
     output =  dbstore.execute("select sample.author,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY author")
     stats["sampleAuthors"] = output.get_all()
+    authorPie = ROOT.TPie("sampleAuthorsPie","Samples authors",len(stats["sampleAuthors"]))
+    for index,entry in enumerate(stats["sampleAuthors"]):
+      authorPie.SetEntryVal(index,entry[1])
+      authorPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    authorPie.SetTextAngle(0);
+    authorPie.SetRadius(0.3);
+    authorPie.SetTextColor(1);
+    authorPie.SetTextFont(62);
+    authorPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("sampleAuthor","",2)
+    authorPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
     #sample types statistics
     output =  dbstore.execute("select sample.sampletype,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY sampletype")
     stats["sampleTypes"] = output.get_all()
+    typePie = ROOT.TPie("sampleTypesPie","Samples types",len(stats["sampleTypes"]))
+    for index,entry in enumerate(stats["sampleTypes"]):
+      typePie.SetEntryVal(index,entry[1])
+      typePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    typePie.SetTextAngle(0);
+    typePie.SetRadius(0.3);
+    typePie.SetTextColor(1);
+    typePie.SetTextFont(62);
+    typePie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("sampleType","",2)
+    typePie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
     # get all samples to loop
     result = dbstore.find(Sample)
-    # statistics
-    #sample_nevents_processed = ROOT.TH1F("sample_nevents_processed","sample_nevents_processed",100,0,-100)
-    #sample_nevents = ROOT.TH1F("sample_nevents","sample_nevents",100,0,-100)
-    #for sample in result:
-    #    sample_nevents_processed.Fill(sample.nevents_processed)
-    #    sample_nevents.Fill(sample.nevents)
-    #sample_nevent_processed.Print("all")
-    #sample_nevents.Print("all")
-    # TODO: decide what to do with the histograms... add to json? I guess this would mean the following:
-    # json = ROOT.TBufferJSON.ConvertToJSON(htemp)
-    # decode json to a dict
-    # add that dict to the array.
-    # TODO: create histograms for nevents and nevents_processed
-    # TODO: create a ROOT file with the four histograms
+    result.order_by(Sample.creation_time)
+    # events statistics
+    sample_nevents_processed = ROOT.TH1I("sample_nevents_processed","sample_nevents_processed",100,0,-100)
+    sample_nevents = ROOT.TH1I("sample_nevents","sample_nevents",100,0,-100)
+    # time evolution of statistics & # samples (still in db)
+    sample_nevents_processed_time = [[0,0]]
+    sample_nevents_time = [[0,0]] 
+    samples_time = [[0,0]]
+    # let's go... loop
+    for sample in result:
+        # for Highcharts the time format is #seconds since epoch
+        time = int(sample.creation_time.strftime("%s"))*1000
+        ne = 0 if sample.nevents is None else sample.nevents
+        np = 0 if sample.nevents_processed is None else sample.nevents_processed
+        sample_nevents_processed.Fill(np)
+        sample_nevents.Fill(ne)
+        sample_nevents_processed_time.append([time,sample_nevents_processed_time[-1][1]+np])
+        sample_nevents_time.append([time,sample_nevents_time[-1][1]+ne])
+        samples_time.append([time,samples_time[-1][1]+1])
+    # drop this: just to initialize the loop
+    sample_nevents_processed_time.pop(0)
+    sample_nevents_time.pop(0)
+    samples_time.pop(0)
+    # output
+    stats["sampleNeventsTimeprof"] = sample_nevents_time
+    stats["sampleNeventsProcessedTimeprof"] = sample_nevents_processed_time
+    stats["samplesTimeprof"] = samples_time
+    #TODO: ROOT output (three TGraphs)
+    # unfortunately, TBufferJSON is not available in CMSSW (no libRHttp) -> no easy way to export to JSON
+    # the JSON format for highcharts data is [ [x1,y1], [x2,y2], ... ]
+    data = []
+    for bin in range(1,sample_nevents.GetNbinsX()+1):
+      data.append([sample_nevents.GetBinCenter(bin),sample_nevents.GetBinContent(bin)])
+    stats["sampleNevents"] = data
+    data = []
+    for bin in range(1,sample_nevents_processed.GetNbinsX()+1):
+      data.append([sample_nevents_processed.GetBinCenter(bin),sample_nevents_processed.GetBinContent(bin)])
+    stats["sampleNeventsProcessed"] = data
+    # some printout
+    print "\nStatistics extracted."
+    print '========================'
+    # ROOT output
+    if not opts.dryRun:
+      rootfile.Write();
+      rootfile.Close();
+    # JSON output
     return stats
 
 # function to serialize the storm objects,
