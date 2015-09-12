@@ -87,12 +87,12 @@ def checkSampleConsistency(dbstore,opts):
       if (sample.source_dataset_id is not None) and (sourceDataset is None):
         print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
         print "inconsistent source dataset"
-        array.append(sample)
+        array.append([sample,"inconsistent source dataset"])
         print sample
       if (sample.source_sample_id is not None) and (sourceSample is None):
         print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
         print "inconsistent source sample"
-        array.append(sample)
+        array.append([sample,"inconsistent source sample"])
     if len(array)==0: print "None"
     return array
 
