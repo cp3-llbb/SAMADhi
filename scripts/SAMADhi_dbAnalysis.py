@@ -64,6 +64,7 @@ def main():
     outputDict = {}
     outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
     outputDict["DatabaseInconsistencies"] = checkResultConsistency(dbstore,opts)
+    outputDict["SelectedResults"] = selectResults(dbstore,opts)
     if not opts.dryRun:
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
@@ -101,13 +102,26 @@ def checkSamplePath(dbstore,opts):
     return array
 
 
-#result_id int NOT NULL AUTO_INCREMENT,
-#path varchar(255) NOT NULL,
-#description text,
-#author tinytext,
-#creation_time timestamp,
-#PRIMARY KEY (result_id),
-#KEY idx_path (path)
+def selectResults(dbstore,opts):
+    # look for result records pointing to a ROOT file
+    # eventually further filter 
+    results = dbstore.find(Result)
+    print "\nSelected results:"
+    print '==========================='
+    array = []
+    for result in results:
+        path = result.path
+        if os.path.exists(path) and os.path.isdir(path):
+            files = [ f for f in os.listdir(path) if os.path.isfile(path+"/"+f) ]
+            if len(files)==1:
+                path = path+"/"+f
+	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
+            array.append([result,path])
+            print "Result #%s (created on %s by %s): "%(str(result.result_id),str(result.creation_time),str(result.author)),
+            print path
+    if len(array)==0: print "None"
+    return array
+
 def checkResultConsistency(dbstore,opts):
     # get all samples
     result = dbstore.find(Result)
