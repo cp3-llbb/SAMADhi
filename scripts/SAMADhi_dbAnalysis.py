@@ -65,6 +65,7 @@ def main():
     outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
     outputDict["DatabaseInconsistencies"] = checkResultConsistency(dbstore,opts)
     outputDict["SelectedResults"] = selectResults(dbstore,opts)
+    outputDict["ResultsStatistics"] = analyzeResultsStatistics(dbstore,opts)
     if not opts.dryRun:
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
@@ -165,6 +166,58 @@ def checkSampleConsistency(dbstore,opts):
     if len(array)==0: print "None"
     return array
 
+
+def analyzeResultsStatistics(dbstore,opts):
+    stats = {}
+    # ROOT output
+    if not opts.dryRun:
+      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
+    #authors statistics
+    output =  dbstore.execute("select result.author,COUNT(result.result_id) as numOfResults FROM result GROUP BY author")
+    stats["resultsAuthors"] = output.get_all()
+    authorPie = ROOT.TPie("resultsAuthorsPie","Results authors",len(stats["resultsAuthors"]))
+    for index,entry in enumerate(stats["resultsAuthors"]):
+      authorPie.SetEntryVal(index,entry[1])
+      authorPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    authorPie.SetTextAngle(0);
+    authorPie.SetRadius(0.3);
+    authorPie.SetTextColor(1);
+    authorPie.SetTextFont(62);
+    authorPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("resultsAuthor","",2)
+    authorPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    result_nsamples = ROOT.TH1I("result_nsamples","result_nsamples",100,0,-100)
+    # get all samples to loop
+    results = dbstore.find(Result)
+    results.order_by(Result.creation_time)
+    # time evolution of # results (still in db)
+    results_time = [[0,0]]
+    # let's go... loop
+    for result in results:
+        # for Highcharts the time format is #seconds since epoch
+        time = int(result.creation_time.strftime("%s"))*1000
+        results_time.append([time,results_time[-1][1]+1])
+        result_nsamples.Fill(result.samples.count())
+    # drop this: just to initialize the loop
+    results_time.pop(0)
+    # output
+    stats["resultsTimeprof"] = results_time
+    resultsTimeprof_graph = ROOT.TGraph(len(results_time))
+    for i,s in enumerate(results_time):
+        resultsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
+    if not opts.dryRun:
+        resultsTimeprof_graph.Write("resultsTimeprof_graph")
+    # some printout
+    print "\nStatistics extracted."
+    print '========================'
+    # ROOT output
+    if not opts.dryRun:
+      rootfile.Write();
+      rootfile.Close();
+    # JSON output
+    return stats
 
 def analyzeSampleStatistics(dbstore,opts):
     stats = {}
