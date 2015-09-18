@@ -48,13 +48,47 @@ def main():
     if not os.path.exists(opts.path) and not opts.dryRun:
       os.makedirs(opts.path)
     # run each of the checks and collect data
+ 
+    # checl datasets
+    # TODO: here the plan would be to check if the content of SAMADhi and DAS is consistent. 
+    # this probably requires to reuse code from DAS_import
+    # check samples
     outputDict = {}
     outputDict["MissingDirSamples"] = checkSamplePath(dbstore,opts)
     outputDict["DatabaseInconsistencies"] = checkSampleConsistency(dbstore,opts)
     outputDict["SampleStatistics"] = analyzeSampleStatistics(dbstore,opts)
     if not opts.dryRun:
-      with open(opts.path+'/analysisReport.json', 'w') as outfile:
+      with open(opts.path+'/SamplesAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+    # now, check results
+    outputDict = {}
+    outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
+    if not opts.dryRun:
+      with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
+        json.dump(outputDict, outfile, default=encode_storm_object)
+
+#result_id int NOT NULL AUTO_INCREMENT,
+#path varchar(255) NOT NULL,
+#description text,
+#author tinytext,
+#creation_time timestamp,
+#PRIMARY KEY (result_id),
+#KEY idx_path (path)
+
+def checkResultPath(dbstore,opts):
+    # get all samples
+    result = dbstore.find(Result)
+    print "\nResults with missing path:"
+    print '==========================='
+    array = []
+    for res in result:
+      # check that the path exists, and keep track of the sample if not the case.
+      if not os.path.exists(res.path):
+        print "Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
+        print " missing path: %s" %res.path
+        array.append(res)
+    if len(array)==0: print "None"
+    return array
 
     
 def checkSamplePath(dbstore,opts):
@@ -229,38 +263,3 @@ def encode_storm_object(object):
 if __name__ == '__main__':
     main()
 
-
-#        json += json.dumps(sample, default=encode_storm_object)
-        # here I should dump a report in the output path if necessary
-#        if not opts.dryRun:
-          #print json.dumps(sample.__str__())
-          #TODO: check the best option for web rendering.
-#my plan: 
-# panel with general info on # errors
-# collapsable accordeon panel with all faulty datasets -> header with sample id + name  and  bulk with the rest of the text
-
-#<?php
-#
-#$fh = fopen('filename.txt','r');
-#while ($line = fgets($fh)) {
-#  // <... Do your work with the line ...>
-#  // echo($line);
-#}
-#fclose($fh);
-#?>
-#<?php
-#echo nl2br("foo isn't\n bar");
-#?>
-#
-#<?php
-#$myfile = fopen("webdictionary.txt", "r") or die("Unable to open file!");
-#// Output one line until end-of-file
-#while(!feof($myfile)) {
-#  echo fgets($myfile) . "<br>";
-#}
-#fclose($myfile);
-#?>
-
-#test json:
-#https://eval.in/426950
-# question: do I output a json that reflects the sample class, or the message? or both?
