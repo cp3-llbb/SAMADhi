@@ -63,17 +63,11 @@ def main():
     # now, check results
     outputDict = {}
     outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
+    outputDict["DatabaseInconsistencies"] = checkResultConsistency(dbstore,opts)
     if not opts.dryRun:
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
 
-#result_id int NOT NULL AUTO_INCREMENT,
-#path varchar(255) NOT NULL,
-#description text,
-#author tinytext,
-#creation_time timestamp,
-#PRIMARY KEY (result_id),
-#KEY idx_path (path)
 
 def checkResultPath(dbstore,opts):
     # get all samples
@@ -103,6 +97,33 @@ def checkSamplePath(dbstore,opts):
         print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
         print " missing path: %s" %sample.path
         array.append(sample)
+    if len(array)==0: print "None"
+    return array
+
+
+#result_id int NOT NULL AUTO_INCREMENT,
+#path varchar(255) NOT NULL,
+#description text,
+#author tinytext,
+#creation_time timestamp,
+#PRIMARY KEY (result_id),
+#KEY idx_path (path)
+def checkResultConsistency(dbstore,opts):
+    # get all samples
+    result = dbstore.find(Result)
+    print "\nResults with missing source:"
+    print '============================='
+    array = []
+    for res in result:
+      # check that the source sample exists in the database.
+      # normaly, this should be protected already at the level of sql rules
+      for sample in res.samples:
+        if sample is None:
+          print "Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
+          print "inconsistent source sample"
+          array.append([res,"inconsistent source sample"])
+          print res
+          break
     if len(array)==0: print "None"
     return array
 
