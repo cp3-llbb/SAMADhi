@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS result;
 DROP TABLE IF EXISTS sample;
 DROP TABLE IF EXISTS dataset;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS file;
 
 CREATE TABLE  users
 (
@@ -48,6 +49,7 @@ sampletype varchar(255) NOT NULL,
 nevents_processed int,
 nevents int,
 normalization float NOT NULL DEFAULT 1.0, 
+event_weight_sum float NOT NULL DEFAULT 1.0,
 luminosity float,
 code_version varchar(255),
 user_comment text,
@@ -144,3 +146,14 @@ FOREIGN KEY (event_id) REFERENCES event(event_id),
 FOREIGN KEY (madweight_run) REFERENCES madweightrun(mwrun_id)
 );
 
+CREATE TABLE file
+(
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    sample_id int NOT NULL,
+    lfn varchar(500) NOT NULL,
+    pfn varchar(500) NOT NULL,
+    event_weight_sum float,
+    nevents BIGINT,
+    PRIMARY KEY (id),
+    FOREIGN KEY (sample_id) REFERENCES sample(sample_id) ON DELETE CASCADE
+);
