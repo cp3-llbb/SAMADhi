@@ -5,12 +5,13 @@
 import os,errno,json
 import ROOT
 ROOT.gROOT.SetBatch()
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 from storm.info import get_cls_info
 from datetime import date
 from SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
 from datetime import datetime
 from collections import defaultdict
+from das_import import get_data
 
 class MyOptionParser:
     """
@@ -25,6 +26,34 @@ class MyOptionParser:
         self.parser.add_option("-d","--dry", action="store_true",
                                dest="dryRun", default=False,
              help="Dry run: do no write to disk")
+        # ---- DAS options 
+        das_group = OptionGroup(self.parser,"DAS options",
+                                "The following options control the communication with the DAS server")
+        msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
+        das_group.add_option("--host", action="store", type="string",
+                       default='https://cmsweb.cern.ch', dest="host", help=msg)
+        msg  = "index for returned result"
+        das_group.add_option("--idx", action="store", type="int",
+                               default=0, dest="idx", help=msg)
+        msg  = 'query waiting threshold in sec, default is 5 minutes'
+        das_group.add_option("--threshold", action="store", type="int",
+                               default=300, dest="threshold", help=msg)
+        msg  = 'specify private key file name'
+        das_group.add_option("--key", action="store", type="string",
+                               default="", dest="ckey", help=msg)
+        msg  = 'specify private certificate file name'
+        das_group.add_option("--cert", action="store", type="string",
+                               default="", dest="cert", help=msg)
+        msg = 'specify number of retries upon busy DAS server message'
+        das_group.add_option("--retry", action="store", type="string",
+                               default=0, dest="retry", help=msg)
+        msg = 'drop DAS headers'
+        das_group.add_option("--das-headers", action="store_true",
+                               default=False, dest="das_headers", help=msg)
+        msg = 'verbose output'
+        das_group.add_option("-v", "--verbose", action="store",
+                               type="int", default=0, dest="verbose", help=msg)
+        self.parser.add_option_group(das_group)
 
     def get_opt(self):
         """
@@ -48,10 +77,21 @@ def main():
     if not os.path.exists(opts.path) and not opts.dryRun:
       os.makedirs(opts.path)
     # run each of the checks and collect data
+
+    # collect general statistics
+    outputDict = collectGeneralStats(dbstore,opts)
+    if not opts.dryRun:
+      with open(opts.path+'/stats.json', 'w') as outfile:
+        json.dump(outputDict, outfile, default=encode_storm_object)
  
     # checl datasets
-    # TODO: here the plan would be to check if the content of SAMADhi and DAS is consistent. 
-    # this probably requires to reuse code from DAS_import
+    outputDict = {}
+    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts)
+    outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
+    if not opts.dryRun:
+      with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
+        json.dump(outputDict, outfile, default=encode_storm_object)
+
     # check samples
     outputDict = {}
     outputDict["MissingDirSamples"] = checkSamplePath(dbstore,opts)
@@ -60,6 +100,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/SamplesAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+
     # now, check results
     outputDict = {}
     outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
@@ -70,6 +111,61 @@ def main():
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
 
+def collectGeneralStats(dbstore,opts):
+    # get number of datasets, samples, results, analyses
+    result = {}
+    results = dbstore.find(Result)
+    samples = dbstore.find(Sample)
+    datasets = dbstore.find(Dataset)
+    result["nDatasets"] = datasets.count()
+    result["nSamples"] = samples.count()
+    result["nResults"] = results.count()
+    result["nAnalyses"] = 0
+    print "\nResults with missing path:"
+    print '==========================='
+    print datasets.count(), " datasets"
+    print samples.count(), " samples"
+    print results.count(), " results"
+    return result
+
+def checkDatasets(dbstore,opts):
+    datasets = dbstore.find(Dataset)
+    print "\nDatasets inconsistent with DAS:"
+    print '==========================='
+    result = []
+    for dataset in datasets:
+      query1 = "dataset="+dataset.name+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
+      query2 = "release dataset="+dataset.name+" | grep release.name"
+      query3 = "config dataset="+dataset.name+" | grep config.global_tag,config.name=cmsRun"
+      das_response1 = get_data(opts.host, query1, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
+      das_response2 = get_data(opts.host, query2, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
+      das_response3 = get_data(opts.host, query3, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
+      tmp = [{u'dataset' : [{}]},]
+      for i in range(0,len(das_response1[0]["dataset"])):
+          if das_response1[0]["dataset"][i]["name"]==dataset.name:
+              for key in das_response1[0]["dataset"][i]:
+                  tmp[0]["dataset"][0][key] = das_response1[0]["dataset"][i][key]
+      if not "tag" in tmp[0]["dataset"][0]:
+          tmp[0]["dataset"][0][u'tag']=None
+      das_response1 = tmp
+      try:
+         test1 = das_response2[0]["release"][0]["name"]=="unknown" or dataset.cmssw_release == das_response2[0]["release"][0]["name"], 
+         test2 = dataset.datatype == das_response1[0]["dataset"][0]["datatype"],
+         test3 = dataset.nevents == das_response1[0]["dataset"][0]["nevents"], 
+         test4 = dataset.dsize == das_response1[0]["dataset"][0]["size"]
+      except:
+         result.append(dataset)
+         print "%s (imported on %s by %s):"%(str(dataset.name),str(dataset.creation_time))
+      else:
+         if not(test1 and test2 and test3 and test4):
+             result.append(dataset)
+             print "%s (imported on %s by %s):"%(str(dataset.name),str(dataset.creation_time))
+    return result
+
+def analyzeDatasetsStatistics(dbstore,opts):
+    #TODO
+    result = {}
+    return result
 
 def checkResultPath(dbstore,opts):
     # get all samples
