@@ -23,6 +23,12 @@ class MyOptionParser:
         self.parser.add_option("-p","--path", action="store", type="string",
                                dest="path", default=datetime.now().strftime("%y%m%d-%H:%M:%S"),
              help="Destination path")
+        self.parser.add_option("-b","--basedir", action="store", type="string",
+                               dest="basedir", default="",
+             help="Directory where the website will be installed (pages directory)")
+        self.parser.add_option("-f","--full", action="store_true",
+                               dest="DAScrosscheck", default=False,
+             help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
         self.parser.add_option("-d","--dry", action="store_true",
                                dest="dryRun", default=False,
              help="Dry run: do no write to disk")
@@ -84,9 +90,10 @@ def main():
       with open(opts.path+'/stats.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
  
-    # checl datasets
+    # check datasets
     outputDict = {}
-    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts)
+    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else []
+    #TODO: check for orphan datasets (unused: #samples==0)
     outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
     if not opts.dryRun:
       with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
@@ -121,7 +128,7 @@ def collectGeneralStats(dbstore,opts):
     result["nSamples"] = samples.count()
     result["nResults"] = results.count()
     result["nAnalyses"] = 0
-    print "\nResults with missing path:"
+    print "\nGeneral statistics:"
     print '==========================='
     print datasets.count(), " datasets"
     print samples.count(), " samples"
@@ -163,9 +170,122 @@ def checkDatasets(dbstore,opts):
     return result
 
 def analyzeDatasetsStatistics(dbstore,opts):
-    #TODO
-    result = {}
-    return result
+    # ROOT output
+    if not opts.dryRun:
+      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
+    stats = {}
+    # Releases used
+    output =  dbstore.execute("select dataset.cmssw_release,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY cmssw_release")
+    stats["cmssw_release"] = output.get_all()
+    releasePie = ROOT.TPie("datasetReleasePie","Datasets release",len(stats["cmssw_release"]))
+    for index,entry in enumerate(stats["cmssw_release"]):
+      releasePie.SetEntryVal(index,entry[1])
+      releasePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    releasePie.SetTextAngle(0);
+    releasePie.SetRadius(0.3);
+    releasePie.SetTextColor(1);
+    releasePie.SetTextFont(62);
+    releasePie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("datasetRelease","",2)
+    releasePie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # GlobalTag used
+    output =  dbstore.execute("select dataset.globaltag,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY globaltag")
+    stats["globaltag"] = output.get_all()
+    globaltagPie = ROOT.TPie("datasetGTPie","Datasets globaltag",len(stats["globaltag"]))
+    for index,entry in enumerate(stats["globaltag"]):
+      globaltagPie.SetEntryVal(index,entry[1])
+      globaltagPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    globaltagPie.SetTextAngle(0);
+    globaltagPie.SetRadius(0.3);
+    globaltagPie.SetTextColor(1);
+    globaltagPie.SetTextFont(62);
+    globaltagPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("datasetGT","",2)
+    globaltagPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # Datatype
+    output =  dbstore.execute("select dataset.datatype,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY datatype")
+    stats["datatype"] = output.get_all()
+    datatypePie = ROOT.TPie("datasetTypePie","Datasets datatype",len(stats["datatype"]))
+    for index,entry in enumerate(stats["datatype"]):
+      datatypePie.SetEntryVal(index,entry[1])
+      datatypePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    datatypePie.SetTextAngle(0);
+    datatypePie.SetRadius(0.3);
+    datatypePie.SetTextColor(1);
+    datatypePie.SetTextFont(62);
+    datatypePie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("datasetType","",2)
+    datatypePie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # Energy
+    output =  dbstore.execute("select dataset.energy,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY energy")
+    stats["energy"] = output.get_all()
+    energyPie = ROOT.TPie("datasetEnergyPie","Datasets energy",len(stats["energy"]))
+    for index,entry in enumerate(stats["energy"]):
+      energyPie.SetEntryVal(index,entry[1])
+      energyPie.SetEntryLabel(index,"None" if entry[0] is None else str(entry[0]))
+    energyPie.SetTextAngle(0);
+    energyPie.SetRadius(0.3);
+    energyPie.SetTextColor(1);
+    energyPie.SetTextFont(62);
+    energyPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("datasetEnergy","",2)
+    energyPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # get all datasets to loop
+    datasets = dbstore.find(Dataset)
+    datasets.order_by(Dataset.creation_time)
+    # time evolution of # datasets (still in db)
+    datasets_time = [[0,0]]
+    # various stats (histograms)
+    datasets_nsamples = ROOT.TH1I("dataseets_nsamples","datasets_nsamples",100,0,-100)
+    datasets_nevents  = ROOT.TH1I("dataseets_nevents", "datasets_nevents" ,100,0,-100)
+    datasets_dsize    = ROOT.TH1I("dataseets_dsize",   "datasets_dsize"   ,100,0,-100)
+    # let's go... loop
+    for dataset in datasets:
+        # for Highcharts the time format is #seconds since epoch
+        time = int(dataset.creation_time.strftime("%s"))*1000
+        datasets_time.append([time,datasets_time[-1][1]+1])
+        datasets_nsamples.Fill(dataset.samples.count())
+        datasets_nevents.Fill(dataset.nevents)
+        datasets_dsize.Fill(dataset.dsize)
+    # drop this: just to initialize the loop
+    datasets_time.pop(0)
+    # output
+    stats["datasetsTimeprof"] = datasets_time
+    datasetsTimeprof_graph = ROOT.TGraph(len(datasets_time))
+    for i,s in enumerate(datasets_time):
+        datasetsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
+    if not opts.dryRun:
+        datasetsTimeprof_graph.Write("datasetsTimeprof_graph")
+    data = []
+    for bin in range(1,datasets_nsamples.GetNbinsX()+1):
+        data.append([datasets_nsamples.GetBinCenter(bin),datasets_nsamples.GetBinContent(bin)])
+    stats["datasetsNsamples"] = data
+    data = []
+    for bin in range(1,datasets_nevents.GetNbinsX()+1):
+        data.append([datasets_nevents.GetBinCenter(bin),datasets_nevents.GetBinContent(bin)])
+    stats["datasetsNevents"] = data
+    data = []
+    for bin in range(1,datasets_dsize.GetNbinsX()+1):
+        data.append([datasets_dsize.GetBinCenter(bin),datasets_dsize.GetBinContent(bin)])
+    stats["datasetsDsize"] = data
+    # some printout
+    print "\nDatasets Statistics extracted."
+    print '================================='
+    # ROOT output
+    if not opts.dryRun:
+      rootfile.Write();
+      rootfile.Close();
+    # JSON output
+    return stats
+
 
 def checkResultPath(dbstore,opts):
     # get all samples
@@ -213,6 +333,7 @@ def selectResults(dbstore,opts):
             if len(files)==1:
                 path = path+"/"+f
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
+            path = os.path.relpath(path,opts.basedir)
             array.append([result,path])
             print "Result #%s (created on %s by %s): "%(str(result.result_id),str(result.creation_time),str(result.author)),
             print path
@@ -305,9 +426,13 @@ def analyzeResultsStatistics(dbstore,opts):
         resultsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
     if not opts.dryRun:
         resultsTimeprof_graph.Write("resultsTimeprof_graph")
+    data = []
+    for bin in range(1,result_nsamples.GetNbinsX()+1):
+        data.append([result_nsamples.GetBinCenter(bin),result_nsamples.GetBinContent(bin)])
+    stats["resultNsamples"] = data
     # some printout
-    print "\nStatistics extracted."
-    print '========================'
+    print "\nResults Statistics extracted."
+    print '================================'
     # ROOT output
     if not opts.dryRun:
       rootfile.Write();
@@ -405,8 +530,8 @@ def analyzeSampleStatistics(dbstore,opts):
       data.append([sample_nevents_processed.GetBinCenter(bin),sample_nevents_processed.GetBinContent(bin)])
     stats["sampleNeventsProcessed"] = data
     # some printout
-    print "\nStatistics extracted."
-    print '========================'
+    print "\nSamples Statistics extracted."
+    print '================================'
     # ROOT output
     if not opts.dryRun:
       rootfile.Write();
