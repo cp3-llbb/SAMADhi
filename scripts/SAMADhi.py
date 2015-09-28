@@ -77,6 +77,7 @@ class Sample(Storm):
   nevents_processed = Int()
   nevents = Int()
   normalization = Float()
+  event_weight_sum = Float()
   luminosity = Float()
   code_version = Unicode()
   user_comment = Unicode()
@@ -88,6 +89,7 @@ class Sample(Storm):
   source_sample = Reference(source_sample_id, "Sample.sample_id")
   derived_samples = ReferenceSet(sample_id,"Sample.source_sample") 
   results = ReferenceSet(sample_id,"SampleResult.sample_id","SampleResult.result_id","Result.result_id")
+  files = ReferenceSet(sample_id, "File.sample_id")
 
   SampleTypes = [ "PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER" ]
   
@@ -110,6 +112,7 @@ class Sample(Storm):
     self.nevents_processed = sample.nevents_processed
     self.nevents = sample.nevents
     self.normalization = sample.normalization
+    self.event_weight_sum = sample.event_weight_sum
     self.luminosity = sample.luminosity
     self.code_version = sample.code_version
     self.user_comment = sample.user_comment
@@ -117,6 +120,11 @@ class Sample(Storm):
     self.source_sample_id = sample.source_sample_id
     self.author = sample.author
     self.creation_time = sample.creation_time
+
+  def removeFiles(self, store):
+    store.find(File, File.sample_id == self.sample_id).remove()
+    self.files.clear()
+
 
   def getLuminosity(self):
     """Computes the sample (effective) luminosity"""
@@ -143,11 +151,20 @@ class Sample(Storm):
     result += "  number of processed events: %s\n"%str(self.nevents_processed)
     result += "  number of events: %s\n"%str(self.nevents)
     result += "  normalization: %s\n"%str(self.normalization)
+    result += "  sum of event weight: %s\n"%str(self.event_weight_sum)
     result += "  (effective) luminosity: %s\n"%str(self.luminosity)
     result += "  code version: %s\n"%str(self.code_version)
     result += "  comment: %s\n"%str(self.user_comment)
     result += "  source dataset: %s\n"%str(self.source_dataset_id)
-    result += "  source sample: %s"%str(self.source_sample_id)
+    result += "  source sample: %s\n"%str(self.source_sample_id)
+    if self.sample_id:
+        result += "  %d files: \n" % (self.files.count())
+        for f in self.files:
+            result += "    - %s (%d entries)\n" % (str(f.lfn), f.nevents)
+    else:
+        # No way to know if some files are here
+        result += "  no files"
+
     return result
 
 class Result(Storm):
@@ -301,3 +318,19 @@ class Weight(Storm):
   def __str__(self):
     return "%f +/- %f"%(self.value,self.uncertainty)
 
+class File(Storm):
+    __storm_table__ = "file"
+    id = Int(primary=True)
+    sample_id = Int()
+    lfn = Unicode()  # Local file name: /store/
+    pfn = Unicode()  # Physical file name: srm:// or root://
+    event_weight_sum = Float()
+    nevents = Int()
+
+    sample = Reference(sample_id, "Sample.sample_id")
+
+    def __init__(self, lfn, pfn, event_weight_sum, nevents):
+        self.lfn = lfn
+        self.pfn = pfn
+        self.event_weight_sum = event_weight_sum
+        self.nevents = nevents

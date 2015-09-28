@@ -3,11 +3,33 @@
 # Script to add a sample to the database
 
 import os
+import glob
 from pwd import getpwuid
 from optparse import OptionParser
 from datetime import datetime
-from SAMADhi import Dataset, Sample, DbStore
+from SAMADhi import Dataset, Sample, File, DbStore
 from userPrompt import confirm, prompt_dataset, prompt_sample
+
+def get_file_data_(f_):
+    import ROOT
+
+    f = ROOT.TFile.Open(f_)
+    if not f:
+        return (None, None)
+
+    weight_sum = f.Get("event_weight_sum")
+    if weight_sum:
+        weight_sum = weight_sum.GetVal()
+    else:
+        weight_sum = None
+
+    entries = None
+    tree = f.Get("t")
+    if tree:
+        entries = tree.GetEntriesFast()
+
+    return (weight_sum, entries)
+
 
 class MyOptionParser: 
     """
@@ -29,6 +51,9 @@ class MyOptionParser:
              help="number of events (in the sample)")
         self.parser.add_option("--norm", action="store", type="float", 
                                default=1.0, dest="normalization",
+             help="additional normalization factor")
+        self.parser.add_option("--weight-sum", action="store", type="float", 
+                               default=1.0, dest="weight_sum",
              help="additional normalization factor")
         self.parser.add_option("--lumi", action="store", type="float", 
                                default=None, dest="luminosity",
@@ -93,6 +118,7 @@ def main():
     sample  = Sample(unicode(opts.name), unicode(opts.path), unicode(opts.sampletype), opts.nevents_processed)
     sample.nevents = opts.nevents
     sample.normalization = opts.normalization
+    sample.event_weight_sum = opts.weight_sum
     sample.luminosity = opts.luminosity
     sample.code_version = unicode(opts.code_version)
     sample.user_comment = unicode(opts.user_comment)
@@ -123,6 +149,17 @@ def main():
       sample.nevents_processed = dbstore.find(Dataset,Dataset.dataset_id==sample.source_dataset_id).one().nevents
     if sample.nevents_processed is None:
       print "Warning: Number of processed events not given, and no way to guess it."
+
+    # List input files
+    files = glob.glob(os.path.join(sample.path, '*.root'))
+    if len(files) == 0:
+      print "Warning: no root files found in %r" % sample.path
+
+    # Try to guess the number of events stored into the file, as well as the weight sum
+    for f in files:
+        (weight_sum, entries) = get_file_data_(f)
+        sample.files.add(File(f, f, weight_sum, entries))
+
     # check that there is no existing entry
     checkExisting = dbstore.find(Sample,Sample.name==sample.name)
     if checkExisting.is_empty():
