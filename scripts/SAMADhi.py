@@ -26,7 +26,7 @@ class Dataset(Storm):
   user_comment = Unicode()
   energy = Float()
   creation_time = DateTime()
-  samples = ReferenceSet(dataset_id,"Sample.source_dataset")
+  samples = ReferenceSet(dataset_id,"Sample.source_dataset_id")
   
   def __init__(self, name, datatype):
     """Initialize a dataset by name and datatype.
@@ -86,7 +86,7 @@ class Sample(Storm):
   source_sample_id  = Int()
   source_dataset = Reference(source_dataset_id, "Dataset.dataset_id")
   source_sample = Reference(source_sample_id, "Sample.sample_id")
-  derived_samples = ReferenceSet(sample_id,"Sample.source_sample") 
+  derived_samples = ReferenceSet(sample_id,"Sample.source_sample_id") 
   results = ReferenceSet(sample_id,"SampleResult.sample_id","SampleResult.result_id","Result.result_id")
 
   SampleTypes = [ "PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER" ]
