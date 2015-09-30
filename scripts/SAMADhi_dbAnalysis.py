@@ -93,7 +93,8 @@ def main():
     # check datasets
     outputDict = {}
     outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else []
-    #TODO: check for orphan datasets (unused: #samples==0)
+    outputDict["Orphans"] = findOrphanDatasets(dbstore,opts)
+    outputDict["IncompleteData"] = checkDatasetsIntegrity(dbstore,opts)
     outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
     if not opts.dryRun:
       with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
@@ -129,7 +130,7 @@ def collectGeneralStats(dbstore,opts):
     result["nResults"] = results.count()
     result["nAnalyses"] = 0
     print "\nGeneral statistics:"
-    print '==========================='
+    print '======================'
     print datasets.count(), " datasets"
     print samples.count(), " samples"
     print results.count(), " results"
@@ -138,7 +139,7 @@ def collectGeneralStats(dbstore,opts):
 def checkDatasets(dbstore,opts):
     datasets = dbstore.find(Dataset)
     print "\nDatasets inconsistent with DAS:"
-    print '==========================='
+    print '=================================='
     result = []
     for dataset in datasets:
       query1 = "dataset="+dataset.name+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
@@ -161,13 +162,46 @@ def checkDatasets(dbstore,opts):
          test3 = dataset.nevents == das_response1[0]["dataset"][0]["nevents"], 
          test4 = dataset.dsize == das_response1[0]["dataset"][0]["size"]
       except:
-         result.append(dataset)
-         print "%s (imported on %s by %s):"%(str(dataset.name),str(dataset.creation_time))
+         result.append([dataset,"Inconsistent with DAS"])
+         print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
       else:
          if not(test1 and test2 and test3 and test4):
-             result.append(dataset)
-             print "%s (imported on %s by %s):"%(str(dataset.name),str(dataset.creation_time))
+             result.append([dataset,"Inconsistent with DAS"])
+             print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
     return result
+
+def findOrphanDatasets(dbstore,opts):
+    datasets = dbstore.find(Dataset)
+    print "\nOrphan Datasets:"
+    print '==================='
+    result = []
+    for dataset in datasets:
+        if dataset.samples.count()==0:
+            result.append(dataset)
+            print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
+    if len(result)==0:
+       print "None"
+    return result
+
+def checkDatasetsIntegrity(dbstore,opts):
+    datasets = dbstore.find(Dataset)
+    print "\nDatasets integrity issues:"
+    print '==========================='
+    result = []
+    for dataset in datasets:
+        if dataset.cmssw_release is None:
+            result.append([dataset,"missing CMSSW release"])
+            print "%s (imported on %s): missing CMSSW release"%(str(dataset.name),str(dataset.creation_time))
+        elif dataset.energy is None:
+            result.append([dataset,"missing Energy"])
+            print "%s (imported on %s): missing Energy"%(str(dataset.name),str(dataset.creation_time))
+        elif dataset.globaltag is None:
+            result.append([dataset,"missing Globaltag"])
+            print "%s (imported on %s): missing Globaltag"%(str(dataset.name),str(dataset.creation_time))
+    if len(result)==0:
+       print "None"
+    return result
+    
 
 def analyzeDatasetsStatistics(dbstore,opts):
     # ROOT output
