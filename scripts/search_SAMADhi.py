@@ -75,11 +75,11 @@ def main():
       objectId = Result.result_id
 
     if opts.objid is not None:
-      result = dbstore.find(objectClass,objectId==opts.objid)
+      result = dbstore.find(objectClass, objectId==opts.objid)
     elif opts.path is not None:
-      result = dbstore.find(objectClass,objectClass.path.like(unicode(opts.path)))
+      result = dbstore.find(objectClass, objectClass.path.like(unicode(opts.path.replace('*', '%').replace('?', '_'))))
     elif opts.name is not None:
-      result = dbstore.find(objectClass,objectClass.name.like(unicode(opts.name)))
+      result = dbstore.find(objectClass, objectClass.name.like(unicode(opts.name.replace('*', '%').replace('?', '_'))))
     else: 
       result = dbstore.find(objectClass)
 
