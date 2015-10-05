@@ -79,6 +79,7 @@ class Sample(Storm):
   normalization = Float()
   event_weight_sum = Float()
   luminosity = Float()
+  processed_lumi = Unicode() #  MEDIUMTEXT in MySQL
   code_version = Unicode()
   user_comment = Unicode()
   author = Unicode()
@@ -153,6 +154,10 @@ class Sample(Storm):
     result += "  normalization: %s\n"%str(self.normalization)
     result += "  sum of event weight: %s\n"%str(self.event_weight_sum)
     result += "  (effective) luminosity: %s\n"%str(self.luminosity)
+    if self.processed_lumi:
+        result += "  has processed luminosity sections information\n"
+    else:
+        result += "  does not have processed luminosity sections information\n"
     result += "  code version: %s\n"%str(self.code_version)
     result += "  comment: %s\n"%str(self.user_comment)
     result += "  source dataset: %s\n"%str(self.source_dataset_id)
