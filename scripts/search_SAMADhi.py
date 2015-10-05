@@ -73,6 +73,7 @@ def main():
     else:
       objectClass = Result
       objectId = Result.result_id
+
     if opts.objid is not None:
       result = dbstore.find(objectClass,objectId==opts.objid)
     elif opts.path is not None:
@@ -81,6 +82,8 @@ def main():
       result = dbstore.find(objectClass,objectClass.name.like(unicode(opts.name)))
     else: 
       result = dbstore.find(objectClass)
+
+    result = result.order_by(objectId)
     # loop and print
     if opts.longOutput:
       for entry in result:
