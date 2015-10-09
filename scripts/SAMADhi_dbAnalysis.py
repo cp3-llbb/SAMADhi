@@ -278,7 +278,7 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # time evolution of # datasets (still in db)
     datasets_time = [[0,0]]
     # various stats (histograms)
-    datasets_nsamples = ROOT.TH1I("dataseets_nsamples","datasets_nsamples",100,0,-100)
+    datasets_nsamples = ROOT.TH1I("dataseets_nsamples","datasets_nsamples",10,0,10)
     datasets_nevents  = ROOT.TH1I("dataseets_nevents", "datasets_nevents" ,100,0,-100)
     datasets_dsize    = ROOT.TH1I("dataseets_dsize",   "datasets_dsize"   ,100,0,-100)
     # let's go... loop
@@ -439,7 +439,7 @@ def analyzeResultsStatistics(dbstore,opts):
     authorPie.Draw("r")
     if not opts.dryRun:
       ROOT.gPad.Write()
-    result_nsamples = ROOT.TH1I("result_nsamples","result_nsamples",100,0,-100)
+    result_nsamples = ROOT.TH1I("result_nsamples","result_nsamples",20,0,20)
     # get all samples to loop
     results = dbstore.find(Result)
     results.order_by(Result.creation_time)
