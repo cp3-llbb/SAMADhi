@@ -73,6 +73,9 @@ class MyOptionParser:
         self.parser.add_option("-a", "--author", action="store", type="string",
                                default=None, dest="author",
              help="author of the result. If not specified, is taken from the path.")
+        self.parser.add_option("--files", action="store", type="string",
+                               default="", dest="files",
+             help="list of files (full path, comma-separated values)")
         self.parser.add_option("-t", "--time", action="store", type="string",
                                default=None, dest="time",
              help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS. Default is current time.")
@@ -151,7 +154,11 @@ def main():
       print "Warning: Number of processed events not given, and no way to guess it."
 
     # List input files
-    files = glob.glob(os.path.join(sample.path, '*.root'))
+    files = []
+    if opts.files == "":
+        files = glob.glob(os.path.join(sample.path, '*.root'))
+    else:
+        files = unicode(opts.files).split(",")
     if len(files) == 0:
       print "Warning: no root files found in %r" % sample.path
 
