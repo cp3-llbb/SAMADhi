@@ -370,6 +370,7 @@ def selectResults(dbstore,opts):
             files = [ f for f in os.listdir(path) if os.path.isfile(path+"/"+f) ]
             if len(files)==1:
                 path = path+"/"+f
+		result.path = path
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
 	    symlink = "%s/data/result_%s.root"%(opts.basedir,str(result.result_id))
 	    relpath = "../data/result_%s.root"%(str(result.result_id))
