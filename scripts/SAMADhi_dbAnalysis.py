@@ -89,6 +89,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/stats.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+	force_symlink(opts.path+'/stats.json',opts.basedir+'/data/stats.json')
  
     # check datasets
     outputDict = {}
