@@ -99,7 +99,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
-	os.symlink(opts.path+'/DatasetsAnalysisReport.json',opts.basedir+'/data/DatasetsAnalysisReport.json')
+	force_symlink(opts.path+'/DatasetsAnalysisReport.json',opts.basedir+'/data/DatasetsAnalysisReport.json')
 
     # check samples
     outputDict = {}
@@ -109,7 +109,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/SamplesAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
-	os.symlink(opts.path+'/SamplesAnalysisReport.json',opts.basedir+'/data/SamplesAnalysisReport.json')
+	force_symlink(opts.path+'/SamplesAnalysisReport.json',opts.basedir+'/data/SamplesAnalysisReport.json')
 
     # now, check results
     outputDict = {}
@@ -120,7 +120,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
-	os.symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
+	force_symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
 
 def collectGeneralStats(dbstore,opts):
     # get number of datasets, samples, results, analyses
@@ -371,8 +371,9 @@ def selectResults(dbstore,opts):
                 path = path+"/"+f
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
 	    symlink = "%s/data/result_%s.root"%(opts.basedir,str(result.result_id))
-	    os.symlink(result.path,symlink)
-	    array.append([result,symlink])
+	    relpath = "../data/result_%s.root"%(str(result.result_id))
+	    force_symlink(path,symlink)
+	    array.append([result,relpath])
             print "Result #%s (created on %s by %s): "%(str(result.result_id),str(result.creation_time),str(result.author)),
             print symlink
 
@@ -604,6 +605,14 @@ def encode_storm_object(object):
             value= str(value)
         result[name] = value
     return result
+
+def force_symlink(file1, file2):
+    try:
+        os.symlink(file1, file2)
+    except OSError, e:
+        if e.errno == errno.EEXIST:
+            os.remove(file2)
+            os.symlink(file1, file2)
 
 #
 # main
