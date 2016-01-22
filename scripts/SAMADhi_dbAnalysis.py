@@ -25,7 +25,7 @@ class MyOptionParser:
              help="Destination path")
         self.parser.add_option("-b","--basedir", action="store", type="string",
                                dest="basedir", default="",
-             help="Directory where the website will be installed (pages directory)")
+             help="Directory where the website will be installed")
         self.parser.add_option("-f","--full", action="store_true",
                                dest="DAScrosscheck", default=False,
              help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
@@ -99,6 +99,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+	os.symlink(opts.path+'/DatasetsAnalysisReport.json',opts.basedir+'/data/DatasetsAnalysisReport.json')
 
     # check samples
     outputDict = {}
@@ -108,6 +109,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/SamplesAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+	os.symlink(opts.path+'/SamplesAnalysisReport.json',opts.basedir+'/data/SamplesAnalysisReport.json')
 
     # now, check results
     outputDict = {}
@@ -118,6 +120,7 @@ def main():
     if not opts.dryRun:
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
+	os.symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
 
 def collectGeneralStats(dbstore,opts):
     # get number of datasets, samples, results, analyses
@@ -367,10 +370,12 @@ def selectResults(dbstore,opts):
             if len(files)==1:
                 path = path+"/"+f
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
-            path = os.path.relpath(path,opts.basedir)
-            array.append([result,path])
+	    symlink = "%s/data/result_%s.root"%(opts.basedir,str(result.result_id))
+	    os.symlink(result.path,symlink)
+	    array.append([result,symlink])
             print "Result #%s (created on %s by %s): "%(str(result.result_id),str(result.creation_time),str(result.author)),
-            print path
+            print symlink
+
     if len(array)==0: print "None"
     return array
 
