@@ -78,6 +78,7 @@ class Sample(Storm):
   nevents = Int()
   normalization = Float()
   event_weight_sum = Float()
+  extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
   luminosity = Float()
   processed_lumi = Unicode() #  MEDIUMTEXT in MySQL
   code_version = Unicode()
@@ -114,6 +115,7 @@ class Sample(Storm):
     self.nevents = sample.nevents
     self.normalization = sample.normalization
     self.event_weight_sum = sample.event_weight_sum
+    self.extras_event_weight_sum = sample.extras_event_weight_sum
     self.luminosity = sample.luminosity
     self.code_version = sample.code_version
     self.user_comment = sample.user_comment
@@ -153,6 +155,8 @@ class Sample(Storm):
     result += "  number of events: %s\n"%str(self.nevents)
     result += "  normalization: %s\n"%str(self.normalization)
     result += "  sum of event weight: %s\n"%str(self.event_weight_sum)
+    if self.extras_event_weight_sum:
+        result += "  has extras sum of event weight\n"
     result += "  (effective) luminosity: %s\n"%str(self.luminosity)
     if self.processed_lumi:
         result += "  has processed luminosity sections information\n"
@@ -330,12 +334,14 @@ class File(Storm):
     lfn = Unicode()  # Local file name: /store/
     pfn = Unicode()  # Physical file name: srm:// or root://
     event_weight_sum = Float()
+    extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
     nevents = Int()
 
     sample = Reference(sample_id, "Sample.sample_id")
 
-    def __init__(self, lfn, pfn, event_weight_sum, nevents):
+    def __init__(self, lfn, pfn, event_weight_sum, extras_event_weight_sum, nevents):
         self.lfn = lfn
         self.pfn = pfn
         self.event_weight_sum = event_weight_sum
+        self.extras_event_weight_sum = extras_event_weight_sum
         self.nevents = nevents
