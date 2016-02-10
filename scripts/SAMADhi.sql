@@ -19,8 +19,7 @@ PRIMARY KEY (userID) ,
 UNIQUE (userName)
 ) ENGINE = INNODB;
 
-INSERT INTO 'users' (`userName`,`password`,`role`)
-VALUES ('adminUser','050f02a6a1221639d03d1ad935ff7fbf','ADMIN');
+INSERT INTO users (`userName`,`password`,`role`) VALUES ('adminUser','050f02a6a1221639d03d1ad935ff7fbf','ADMIN');
 
 CREATE TABLE dataset
 (
@@ -50,6 +49,7 @@ nevents_processed int,
 nevents int,
 normalization float NOT NULL DEFAULT 1.0, 
 event_weight_sum float NOT NULL DEFAULT 1.0,
+extras_event_weight_sum mediumtext,
 processed_lumi mediumtext,
 luminosity float,
 code_version varchar(255),
@@ -154,6 +154,7 @@ CREATE TABLE file
     lfn varchar(500) NOT NULL,
     pfn varchar(500) NOT NULL,
     event_weight_sum float,
+    extras_event_weight_sum mediumtext,
     nevents BIGINT,
     PRIMARY KEY (id),
     FOREIGN KEY (sample_id) REFERENCES sample(sample_id) ON DELETE CASCADE
