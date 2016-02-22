@@ -20,12 +20,19 @@ def get_options():
 
     parser.add_argument('--bootstrap', dest='bootstrap', action='store_true', help='Install brilcalc. Needs to be done only once')
 
+    parser.add_argument('--update', dest='update', action='store_true', help='Update brilcalc')
+
     parser.add_argument('-n', '--username', dest='username', help='Remote lxplus username (local username by default)')
+
+    parser.add_argument('-t', '--normtag', dest='normtag', help='Normtag on /afs')
 
     options = parser.parse_args()
 
-    if not options.bootstrap and options.ids is None and options.names is None:
+    if not options.bootstrap and not options.update and options.ids is None and options.names is None:
         parser.error('You must specify at least one sample id or sample name.')
+
+    if not options.bootstrap and not options.update and not options.normtag:
+        parser.error('You must specify a normtag file')
 
     if options.ids is None:
         options.ids = []
@@ -74,7 +81,7 @@ def compute_luminosity(sample, options):
         print("Running brilcalc on lxplus... You'll probably need to enter your lxplus password in a moment")
         print('')
 
-        cmds = ['brilcalc', 'lumi', '--normtag', '~lumipro/public/normtag_file/OfflineNormtagV2.json', '--output-style', 'csv', '-i', '"%s"' % str(sample.processed_lumi.replace('"', ''))]
+        cmds = ['brilcalc', 'lumi', '--normtag', options.normtag, '--output-style', 'csv', '-i', '"%s"' % str(sample.processed_lumi.replace('"', ''))]
         cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.0.3/bin:$PATH"; ' + ' '.join(cmds)
         ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
         brilcalc_result = subprocess.check_output(ssh_cmds)
@@ -110,12 +117,29 @@ def install_brilcalc(options):
     ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
     subprocess.call(ssh_cmds)
 
+def update_brilcalc(options):
+
+    if options.local:
+        print("Local installation of brilcalc is not supported.")
+        return
+
+    print("Updating brilcalc on lxplus... You'll probably need to enter your lxplus password in a moment")
+
+    cmds = ['pip', 'install', '--install-option="--prefix=$HOME/.local"', '--upgrade', 'brilws']
+    cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.0.3/bin:$PATH"; %s' % (" ".join(cmds))
+    ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
+    subprocess.call(ssh_cmds)
+
 def main():
 
     options = get_options()
 
     if options.bootstrap:
         install_brilcalc(options)
+        return
+
+    if options.update:
+        update_brilcalc(options)
         return
 
     for id_ in options.ids:
