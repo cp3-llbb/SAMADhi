@@ -3,10 +3,30 @@ from storm.locals import *
 
 #db store connection
 
-def DbStore(login="llbb", password="ijvIg]Em0geqME", database="localhost/llbb"):
-  """create a database object and returns the db store from STORM"""
-  database = create_database("mysql://"+login+":"+password+"@"+database)
-  return Store(database)
+def DbStore(credentials='~/.samadhi'):
+    """create a database object and returns the db store from STORM"""
+
+    import json, os, stat
+    credentials = os.path.expanduser(credentials)
+    if not os.path.exists(credentials):
+        raise IOError('Credentials file %r not found.' % credentials)
+
+    # Check permission
+    mode = stat.S_IMODE(os.stat(credentials).st_mode)
+    if mode != int('400', 8):
+        raise IOError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
+
+    with open(credentials, 'r') as f:
+        data = json.load(f)
+
+        login = data['login']
+        password = data['password']
+        hostname = data['hostname'] if 'hostname' in data else 'localhost'
+        database = data['database']
+
+        db_connection_string = "mysql://%s:%s@%s/%s" % (login, password, hostname, database)
+        return Store(create_database(db_connection_string))
+
 
 #definition of the DB interface classes 
 
