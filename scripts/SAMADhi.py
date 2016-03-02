@@ -168,8 +168,25 @@ class Sample(Storm):
     result += "  source sample: %s\n"%str(self.source_sample_id)
     if self.sample_id:
         result += "  %d files: \n" % (self.files.count())
-        for f in self.files:
+        front_files = []
+        last_file = None
+        if self.files.count() > 5:
+            c = 0
+            for f in self.files:
+                if c < 3:
+                    front_files.append(f)
+
+                if c == self.files.count() - 1:
+                    last_file = f
+                c += 1
+        else:
+            front_files = self.files
+
+        for f in front_files:
             result += "    - %s (%d entries)\n" % (str(f.lfn), f.nevents)
+        if last_file:
+            result += "    - ...\n"
+            result += "    - %s (%d entries)\n" % (str(last_file.lfn), last_file.nevents)
     else:
         # No way to know if some files are here
         result += "  no files"
