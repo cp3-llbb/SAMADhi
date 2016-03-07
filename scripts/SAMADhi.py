@@ -3,10 +3,30 @@ from storm.locals import *
 
 #db store connection
 
-def DbStore(login="llbb", password="ijvIg]Em0geqME", database="localhost/llbb"):
-  """create a database object and returns the db store from STORM"""
-  database = create_database("mysql://"+login+":"+password+"@"+database)
-  return Store(database)
+def DbStore(credentials='~/.samadhi'):
+    """create a database object and returns the db store from STORM"""
+
+    import json, os, stat
+    credentials = os.path.expanduser(credentials)
+    if not os.path.exists(credentials):
+        raise IOError('Credentials file %r not found.' % credentials)
+
+    # Check permission
+    mode = stat.S_IMODE(os.stat(credentials).st_mode)
+    if mode != int('400', 8):
+        raise IOError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
+
+    with open(credentials, 'r') as f:
+        data = json.load(f)
+
+        login = data['login']
+        password = data['password']
+        hostname = data['hostname'] if 'hostname' in data else 'localhost'
+        database = data['database']
+
+        db_connection_string = "mysql://%s:%s@%s/%s" % (login, password, hostname, database)
+        return Store(create_database(db_connection_string))
+
 
 #definition of the DB interface classes 
 
@@ -168,8 +188,25 @@ class Sample(Storm):
     result += "  source sample: %s\n"%str(self.source_sample_id)
     if self.sample_id:
         result += "  %d files: \n" % (self.files.count())
-        for f in self.files:
+        front_files = []
+        last_file = None
+        if self.files.count() > 5:
+            c = 0
+            for f in self.files:
+                if c < 3:
+                    front_files.append(f)
+
+                if c == self.files.count() - 1:
+                    last_file = f
+                c += 1
+        else:
+            front_files = self.files
+
+        for f in front_files:
             result += "    - %s (%d entries)\n" % (str(f.lfn), f.nevents)
+        if last_file:
+            result += "    - ...\n"
+            result += "    - %s (%d entries)\n" % (str(last_file.lfn), last_file.nevents)
     else:
         # No way to know if some files are here
         result += "  no files"
