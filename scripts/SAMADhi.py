@@ -97,7 +97,7 @@ class Sample(Storm):
   nevents_processed = Int()
   nevents = Int()
   normalization = Float()
-  event_weight_sum = Float()
+  event_weight_sum = Double()
   extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
   luminosity = Float()
   processed_lumi = Unicode() #  MEDIUMTEXT in MySQL
@@ -370,7 +370,7 @@ class File(Storm):
     sample_id = Int()
     lfn = Unicode()  # Local file name: /store/
     pfn = Unicode()  # Physical file name: srm:// or root://
-    event_weight_sum = Float()
+    event_weight_sum = Double()
     extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
     nevents = Int()
 
