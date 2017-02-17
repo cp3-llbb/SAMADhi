@@ -67,6 +67,9 @@ def parse_luminosity_csv(result):
     lumi = 0
     reader = csv.reader(f, delimiter=',')
     for row in reader:
+        if not row:
+            continue
+
         if row[0][0] == '#':
             continue
         lumi += float(row[-1])
@@ -82,7 +85,7 @@ def compute_luminosity(sample, options):
         print('')
 
         cmds = ['brilcalc', 'lumi', '--normtag', options.normtag, '--output-style', 'csv', '-i', '"%s"' % str(sample.processed_lumi.replace('"', ''))]
-        cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.0.3/bin:$PATH"; ' + ' '.join(cmds)
+        cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.1.7/bin:$PATH"; ' + ' '.join(cmds)
         ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
         brilcalc_result = subprocess.check_output(ssh_cmds)
 
@@ -113,7 +116,7 @@ def install_brilcalc(options):
     print("Installing brilcalc on lxplus... You'll probably need to enter your lxplus password in a moment")
 
     cmds = ['pip', 'install', '--install-option="--prefix=$HOME/.local"', '--upgrade', 'brilws']
-    cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.0.3/bin:$PATH"; %s' % (" ".join(cmds))
+    cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.1.7/bin:$PATH"; %s' % (" ".join(cmds))
     ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
     subprocess.call(ssh_cmds)
 
@@ -125,8 +128,8 @@ def update_brilcalc(options):
 
     print("Updating brilcalc on lxplus... You'll probably need to enter your lxplus password in a moment")
 
-    cmds = ['pip', 'install', '--install-option="--prefix=$HOME/.local"', '--upgrade', 'brilws']
-    cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.0.3/bin:$PATH"; %s' % (" ".join(cmds))
+    cmds = ['pip', 'install', '--install-option="--prefix=$HOME/.local"', '--upgrade', '--force-reinstall', 'brilws']
+    cmd = 'export PATH="$HOME/.local/bin:/afs/cern.ch/cms/lumi/brilconda-1.1.7/bin:$PATH"; %s' % (" ".join(cmds))
     ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % options.username, cmd]
     subprocess.call(ssh_cmds)
 
