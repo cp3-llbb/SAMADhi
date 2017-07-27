@@ -1,14 +1,9 @@
 #! /usr/bin/env python
 """ Simple script to compute the luminosity of a set of samples """
 
-# Storms package
-import sys
-sys.path.append('/nfs/soft/python/python-2.7.5-sl6_amd64_gcc44/lib/python2.7/site-packages/storm-0.20-py2.7-linux-x86_64.egg')
-sys.path.append('/nfs/soft/python/python-2.7.5-sl6_amd64_gcc44/lib/python2.7/site-packages/MySQL_python-1.2.3-py2.7-linux-x86_64.egg')
-
 import subprocess
 import argparse
-from SAMADhi import Dataset, Sample, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, DbStore
 from storm.locals import Desc
 
 def get_options():

@@ -1,4 +1,4 @@
-import SAMADhi
+from cp3_llbb.SAMADhi import SAMADhi
 
 # Example method to generate a dictionary relating PAT name and luminosity
 # This version is optimized and only load the needed columns. 
