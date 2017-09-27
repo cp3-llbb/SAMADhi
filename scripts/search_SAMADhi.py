@@ -4,7 +4,7 @@
 
 import os
 from optparse import OptionParser
-from SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
 
 class MyOptionParser: 
     """

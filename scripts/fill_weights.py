@@ -4,8 +4,8 @@
 
 import os
 from optparse import OptionParser
-from SAMADhi import Dataset, Sample, Event, MadWeight, MadWeightRun, Weight, DbStore
-from userPrompt import confirm
+from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Event, MadWeight, MadWeightRun, Weight, DbStore
+from cp3_llbb.SAMADhi.userPrompt import confirm
 
 class MyOptionParser: 
     """

@@ -6,9 +6,9 @@ import os,errno,json
 import ROOT
 ROOT.gROOT.SetBatch()
 from optparse import OptionParser, OptionGroup
-from storm.info import get_cls_info
 from datetime import date
-from SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
+from storm.info import get_cls_info
 from datetime import datetime
 from collections import defaultdict
 from das_import import get_data

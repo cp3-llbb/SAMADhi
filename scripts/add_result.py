@@ -6,8 +6,8 @@ import os
 from pwd import getpwuid
 from datetime import datetime
 from optparse import OptionParser
-from SAMADhi import Sample, Result, DbStore
-from userPrompt import confirm, prompt_samples, parse_samples
+from cp3_llbb.SAMADhi.SAMADhi import Sample, Result, DbStore
+from cp3_llbb.SAMADhi.userPrompt import confirm, prompt_samples, parse_samples
 
 class MyOptionParser: 
     """

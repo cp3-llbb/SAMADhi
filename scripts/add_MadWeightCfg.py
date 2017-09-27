@@ -4,8 +4,8 @@
 
 import os
 from optparse import OptionParser
-from SAMADhi import MadWeight, DbStore
-from userPrompt import confirm
+from cp3_llbb.SAMADhi.SAMADhi import MadWeight, DbStore
+from cp3_llbb.SAMADhi.userPrompt import confirm
 
 cards = [ "ident_card",
           "ident_mw_card",
