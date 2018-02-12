@@ -10,7 +10,7 @@ def do_das_query(query):
     Execute das_client for the specified query, and return parsed JSON output
     """
 
-    args = ['das_client', '--format', 'JSON', '--query', query]
+    args = ['dasgoclient', '-json', '--query', query]
     result = subprocess.check_output(args)
 
     return json.loads(result)
