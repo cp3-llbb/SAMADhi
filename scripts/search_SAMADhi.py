@@ -90,7 +90,7 @@ def main():
         print entry
         print "--------------------------------------------------------------------------------------"
     else:
-      if opts.objtype != "result":
+      if opts.objtype != "result" and opts.objtype != "analysis":
         data = result.values(objectId, objectClass.name)
       else:
         data = result.values(objectId, objectClass.description)

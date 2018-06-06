@@ -6,7 +6,7 @@ import os
 from pwd import getpwuid
 from datetime import datetime
 from optparse import OptionParser
-from cp3_llbb.SAMADhi.SAMADhi import Sample, Result, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import Analysis, Sample, Result, DbStore
 from cp3_llbb.SAMADhi.userPrompt import confirm, prompt_samples, parse_samples
 
 class MyOptionParser: 
@@ -25,7 +25,7 @@ class MyOptionParser:
         self.parser.add_option("-e", "--elog", action="store", type="string",
                                default=None, dest="elog",
              help="elog with more details")
-        self.parser.add_option("-A", "--analysis", action="store", type="string",
+        self.parser.add_option("-A", "--analysis", action="store", type="int",
                                default=None, dest="ana",
              help="analysis whose result belong to")
         self.parser.add_option("-a", "--author", action="store", type="string", 
@@ -69,7 +69,7 @@ def main():
     result.description = unicode(opts.desc)
     result.author = unicode(opts.author)
     result.creation_time = opts.datetime
-    result.elog = opts.elog
+    result.elog = unicode(opts.elog)
     result.analysis_id = opts.ana
     # connect to the MySQL database using default credentials
     dbstore = DbStore()
@@ -85,6 +85,9 @@ def main():
     else:
       for sample in samples:
         sample.results.add(result)
+    # flush (populates the analysis if needed)
+    dbstore.flush()
+    # print the resulting object and ask for confirmation
     print result
     if confirm(prompt="Insert into the database?", resp=True):
       dbstore.commit()

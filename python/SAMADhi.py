@@ -243,7 +243,11 @@ class Result(Storm):
 
   def __str__(self):
     result  = "Result in %s \n  created on %s by %s\n  "%(str(self.path),str(self.creation_time),str(self.author))
-    result += str(self.description)
+    result += "%s"%str(self.description)
+    if self.analysis is not None:
+        result += "\n  part of analysis %s"%str(self.analysis.description)
+    if self.elog is not None:
+        result += "\n  more details in %s"%str(self.elog)
     return result
 
 class SampleResult(Storm):
@@ -252,14 +256,6 @@ class SampleResult(Storm):
   __storm_primary__ = "sample_id", "result_id"
   sample_id = Int()
   result_id = Int()
-
-  def __init__(self,event,run,dataset):
-    self.event_number = event
-    self.run_number = run
-    self.dataset_id = dataset
-
-  def __str__(self):
-    return "Event %d, Run %d, Dataset %d"%(self.event_number,self.run_number,self.dataset_id)
 
 class File(Storm):
     __storm_table__ = "file"
@@ -300,5 +296,11 @@ class Analysis(Storm):
         self.contact = analysis.contact
     
     def __str__(self):
-        return "%s (%s). Contact: %s"%(self.description,self.cadiline,self.contact)
+        result = "%s\n"%self.description
+        if self.cadiline is not None:
+            result += "  CADI line: %s\n"%self.cadiline
+        if self.contact is not None:
+            result += "  Contact/Promotor: %s\n"%self.contact
+        result += "  Number of associated results: %d"%self.results.count()
+        return result
 
