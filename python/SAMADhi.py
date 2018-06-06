@@ -225,6 +225,9 @@ class Result(Storm):
   description = Unicode()
   author = Unicode()
   creation_time = DateTime()
+  analysis_id = Int()
+  analysis = Reference(analysis_id, "Analysis.analysis_id")
+  elog = Unicode()
   samples = ReferenceSet(result_id,"SampleResult.result_id","SampleResult.sample_id","Sample.sample_id")
 
   def __init__(self,path):
@@ -234,6 +237,9 @@ class Result(Storm):
     """Replace one entry, but keep the same key"""
     self.path = result.path
     self.description = result.description
+    self.author = result.author
+    self.analysis_id = result.analysis_id
+    self.elog = result.elog
 
   def __str__(self):
     result  = "Result in %s \n  created on %s by %s\n  "%(str(self.path),str(self.creation_time),str(self.author))
@@ -273,3 +279,26 @@ class File(Storm):
         self.event_weight_sum = event_weight_sum
         self.extras_event_weight_sum = extras_event_weight_sum
         self.nevents = nevents
+
+    def __str__(self):
+        return "%s"%(self.lfn)
+
+class Analysis(Storm):
+    __storm_table__ = "analysis"
+    analysis_id = Int(primary=True)
+    description = Unicode()
+    cadiline = Unicode()
+    contact = Unicode()
+    results = ReferenceSet(analysis_id, "Result.analysis_id")
+
+    def __init__(self,description):
+        self.description = description
+
+    def replaceBy(self, analysis):
+        self.description = analysis.description
+        self.cadiline = analysis.cadiline
+        self.contact = analysis.contact
+    
+    def __str__(self):
+        return "%s (%s). Contact: %s"%(self.description,self.cadiline,self.contact)
+
