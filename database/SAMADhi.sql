@@ -18,6 +18,15 @@ UNIQUE (userName)
 INSERT INTO 'users' (`userName`,`password`,`role`)
 VALUES ('adminUser','050f02a6a1221639d03d1ad935ff7fbf','ADMIN');
 
+CREATE TABLE analysis
+(
+    analysis_id int NOT NULL AUTO_INCREMENT,
+    description text,
+    cadiline tinytext,
+    contact tinytext,
+    PRIMARY KEY (analysis_id),
+) ENGINE = INNODB;
+
 CREATE TABLE dataset
 (
 dataset_id int NOT NULL AUTO_INCREMENT,
@@ -67,8 +76,11 @@ path varchar(255) NOT NULL,
 description text,
 author tinytext,
 creation_time timestamp,
+analysis_id int NULL,
+elog varchar(255),
 PRIMARY KEY (result_id),
-KEY idx_path (path)
+KEY idx_path (path),
+FOREIGN KEY (analysis_id) REFERENCES analysis(analysis_id)
 ) ENGINE = INNODB;
 
 CREATE TABLE sampleresult
@@ -91,3 +103,4 @@ CREATE TABLE file
     PRIMARY KEY (id),
     FOREIGN KEY (sample_id) REFERENCES sample(sample_id) ON DELETE CASCADE
 ) ENGINE = INNODB;
+
