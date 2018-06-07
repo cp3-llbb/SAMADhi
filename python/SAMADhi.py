@@ -31,7 +31,6 @@ def DbStore(credentials='~/.samadhi'):
         db_connection_string = "mysql://%s:%s@%s/%s" % (login, password, hostname, database)
         return Store(create_database(db_connection_string))
 
-
 #definition of the DB interface classes 
 
 class Dataset(Storm):
@@ -248,16 +247,6 @@ class SampleResult(Storm):
   sample_id = Int()
   result_id = Int()
 
-class Event(Storm):
-  """Class to represent one unique event"""
-  __storm_table__ = "event"
-  event_id = Int(primary=True)
-  event_number = Int()
-  run_number = Int()
-  dataset_id = Int()
-  dataset = Reference(dataset_id, "Dataset.dataset_id")
-  weights = ReferenceSet(event_id,"Weight.event_id")
-
   def __init__(self,event,run,dataset):
     self.event_number = event
     self.run_number = run
@@ -265,108 +254,6 @@ class Event(Storm):
 
   def __str__(self):
     return "Event %d, Run %d, Dataset %d"%(self.event_number,self.run_number,self.dataset_id)
-
-class MadWeight(Storm):
-  """Description of one MadWeight setup,
-     including the process but also the various options like ISR, 
-     width of a resonance, etc."""
-  __storm_table__ = "madweight"
-  process_id = Int(primary=True)
-  name = Unicode()
-  diagram = Unicode()
-  isr = Int()
-  nwa = Int()
-  cm_energy = Float()
-  higgs_width = Float()
-  ident_mw_card = Unicode()
-  ident_card = Unicode()
-  info_card = Unicode()
-  MadWeight_card = Unicode()
-  mapping_card = Unicode()
-  param_card = Unicode()
-  param_card_1 = Unicode()
-  proc_card_mg5 = Unicode()
-  run_card = Unicode()
-  transfer_card = Unicode()
-  transfer_fctVersion = Unicode()
-  transfer_function = Unicode()
-
-  def __init__(self,name):
-    self.name = name
-  
-  def __str__(self):
-    result  = "MadWeight configuration #%s\n"%str(self.process_id)
-    result += "  name: %s\n"%str(self.name)
-    result += "  diagram: %s\n"%str(self.diagram)
-    result += "  ISR: %s\n"%str(self.isr)
-    result += "  NWA: %s\n"%str(self.nwa)
-    result += "  Center of mass energy: %s\n"%str(self.cm_energy)
-    result += "  Transfert functions: %s\n"%str(self.transfer_fctVersion)
-    result += "  Higgs Width: %s\n"%str(self.higgs_width)
-    return result
-
-  def replaceBy(self, config):
-    """Replace one entry, but keep the same key"""
-    self.name = config.name
-    self.diagram = config.diagram
-    self.isr = config.isr
-    self.nwa = config.nwa
-    self.higgs_width = config.higgs_width
-    self.ident_mw_card = config.ident_mw_card
-    self.ident_card = config.ident_card
-    self.info_card = config.info_card
-    self.MadWeight_card = config.MadWeight_card
-    self.mapping_card = config.mapping_card
-    self.param_card = config.param_card
-    self.param_card_1 = config.param_card_1
-    self.proc_card_mg5 = config.proc_card_mg5
-    self.run_card = config.run_card
-    self.transfer_card = config.transfer_card
-    self.cm_energy = config.cm_energy
-    self.transfer_fctVersion = config.transfer_fctVersion
-    self.transfer_function = config.transfer_function
-
-class MadWeightRun(Storm):
-  """One run of MadWeight. It relates a MW setup to a LHCO file
-     and may contain a systematics flag + comment."""
-  __storm_table__ = "madweightrun"
-  mwrun_id = Int(primary=True)
-  madweight_process = Int()
-  lhco_sample_id = Int()
-  creation_time = DateTime()
-  systematics = Unicode()
-  user_comment = Unicode()
-  version = Int()
-  process = Reference(madweight_process,"MadWeight.process_id")
-  lhco_sample = Reference(lhco_sample_id, "Sample.sample_id")
-
-  def __init__(self,madweight_process,lhco_sample_id):
-    self.madweight_process = madweight_process
-    self.lhco_sample_id = lhco_sample_id
-
-  def __str__(self):
-    result  = "MadWeight run #%s performed on %s\n"%(str(self.mwrun_id),str(self.creation_time))
-    result += "  MadWeight process: %s (id %s)\n"%(str(self.process.name),str(self.madweight_process))
-    result += "  LHCO sample: %s (id %s)\n"%(str(self.lhco_sample.name),str(self.lhco_sample_id))
-    result += "  Systematics: %s\n"%str(self.systematics)
-    result += "  Comment: %s\n"%str(self.user_comment)
-    result += "  Version: %s\n"%str(self.version)
-    return result
-
-class Weight(Storm):
-  """One weight. It relates one event and one MadWeight setup
-     to one value + uncertainty"""
-  __storm_table__ = "weight"
-  weight_id = Int(primary=True)
-  event_id = Int()
-  madweight_run = Int()
-  value = Float()
-  uncertainty = Float()
-  event = Reference(event_id,"Event.event_id")
-  mw_run = Reference(madweight_run,"MadWeightRun.mwrun_id")
-
-  def __str__(self):
-    return "%f +/- %f"%(self.value,self.uncertainty)
 
 class File(Storm):
     __storm_table__ = "file"

@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS madweight;
+DROP TABLE IF EXISTS madweightrun;
+DROP TABLE IF EXISTS weight;
+DROP TABLE IF EXISTS event;
+
