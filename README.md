@@ -21,6 +21,6 @@ git clone -o upstream https://github.com/cp3-llbb/SAMADhi.git cp3_llbb/SAMADhi
 
 Standalone setup on ingrid:
 ```
-. ./installpy_standalone.sh
+source installpy_standalone.sh
 ```
 this will create an install tree and symlink if needed, and otherwise only set some environment variables.

@@ -1,4 +1,3 @@
-#!/bin/sh
 #
 # Creates a (symlinked) python install directory for SAMADhi and sets up environment variables,
 # such that the `from cp3_llbb.SAMADhi.SAMADhi ...` imports can also be used standalone on ingrid.
@@ -37,16 +36,23 @@ fi
 ## add PYTHONPATH (and LD_LIBRARY_PATH for python 2.7 if necessary)
 function checkAndAdd()
 {
-  local bk_ifs="${IFS}"
-  IFS=":"
   local in_path=""
-  exp_path=$(eval echo -e "\$${1}")
-  for apath in ${=exp_path}; do
-    if [[ "${apath}" == "${2}" ]]; then
-      in_path="yes"
-    fi
-  done
-  IFS="${bk_ifs}"
+  if [[ -z "${ZSH_NAME}" ]]; then
+    ## bash version
+    IFS=: local exp_path=${!1}
+    for apath in ${exp_path}; do
+      if [[ "${apath}" == "${2}" ]]; then
+        in_path="yes"
+      fi
+    done
+  else
+    ## zsh version
+    for apath in ${(Ps.:.)1}; do
+      if [[ "${apath}" == "${2}" ]]; then
+        in_path="yes"
+      fi
+    done
+  fi
   if [[ -z "${in_path}" ]]; then
     export ${1}="${2}:${exp_path}"
     echo "--> Added ${2} to ${1}"
