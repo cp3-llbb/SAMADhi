@@ -4,7 +4,11 @@
 # The install directory can be configured with the PREFIX environment variable
 #
 ## figure out where to install ($PREFIX/install_python, with default PREFIX=SAMDhi)
-thisscript="$(readlink -f ${0})"
+if [[ -z "${ZSH_NAME}" ]]; then
+  thisscript="$(readlink -f ${BASH_SOURCE})"
+else
+  thisscript="$(readlink -f ${0})"
+fi
 samadhipath="$(dirname ${thisscript})"
 if [[ -z "${PREFIX}" ]]; then
   PREFIX="${samadhipath}"
