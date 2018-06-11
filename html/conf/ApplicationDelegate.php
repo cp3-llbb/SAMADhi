@@ -32,6 +32,9 @@ class conf_ApplicationDelegate {
             // from the browser. 
             $app->_conf['_disallowed_tables']['hide_admin4'] = 'users'; 
           } 
+	  Dataface_Application::getInstance()->addHeadContent(
+		  sprintf('<link rel="stylesheet" type="text/css" href="%s"/>',htmlspecialchars(DATAFACE_SITE_URL.'/style.css'))
+	  );
       }
 }
 ?>
