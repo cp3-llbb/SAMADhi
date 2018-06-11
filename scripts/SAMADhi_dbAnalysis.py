@@ -7,11 +7,11 @@ import ROOT
 ROOT.gROOT.SetBatch()
 from optparse import OptionParser, OptionGroup
 from datetime import date
-from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, DbStore
 from storm.info import get_cls_info
 from datetime import datetime
 from collections import defaultdict
-from das_import import get_data
+from cp3_llbb.SAMADhi.das_import import query_das
 
 class MyOptionParser:
     """
@@ -32,34 +32,6 @@ class MyOptionParser:
         self.parser.add_option("-d","--dry", action="store_true",
                                dest="dryRun", default=False,
              help="Dry run: do no write to disk")
-        # ---- DAS options 
-        das_group = OptionGroup(self.parser,"DAS options",
-                                "The following options control the communication with the DAS server")
-        msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
-        das_group.add_option("--host", action="store", type="string",
-                       default='https://cmsweb.cern.ch', dest="host", help=msg)
-        msg  = "index for returned result"
-        das_group.add_option("--idx", action="store", type="int",
-                               default=0, dest="idx", help=msg)
-        msg  = 'query waiting threshold in sec, default is 5 minutes'
-        das_group.add_option("--threshold", action="store", type="int",
-                               default=300, dest="threshold", help=msg)
-        msg  = 'specify private key file name'
-        das_group.add_option("--key", action="store", type="string",
-                               default="", dest="ckey", help=msg)
-        msg  = 'specify private certificate file name'
-        das_group.add_option("--cert", action="store", type="string",
-                               default="", dest="cert", help=msg)
-        msg = 'specify number of retries upon busy DAS server message'
-        das_group.add_option("--retry", action="store", type="string",
-                               default=0, dest="retry", help=msg)
-        msg = 'drop DAS headers'
-        das_group.add_option("--das-headers", action="store_true",
-                               default=False, dest="das_headers", help=msg)
-        msg = 'verbose output'
-        das_group.add_option("-v", "--verbose", action="store",
-                               type="int", default=0, dest="verbose", help=msg)
-        self.parser.add_option_group(das_group)
 
     def get_opt(self):
         """
@@ -146,25 +118,25 @@ def checkDatasets(dbstore,opts):
     print '=================================='
     result = []
     for dataset in datasets:
-      query1 = "dataset="+dataset.name+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
-      query2 = "release dataset="+dataset.name+" | grep release.name"
-      query3 = "config dataset="+dataset.name+" | grep config.global_tag,config.name=cmsRun"
-      das_response1 = get_data(opts.host, query1, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      das_response2 = get_data(opts.host, query2, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      das_response3 = get_data(opts.host, query3, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      tmp = [{u'dataset' : [{}]},]
-      for i in range(0,len(das_response1[0]["dataset"])):
-          if das_response1[0]["dataset"][i]["name"]==dataset.name:
-              for key in das_response1[0]["dataset"][i]:
-                  tmp[0]["dataset"][0][key] = das_response1[0]["dataset"][i][key]
-      if not "tag" in tmp[0]["dataset"][0]:
-          tmp[0]["dataset"][0][u'tag']=None
-      das_response1 = tmp
+      # query DAS to get the same dataset, by name
+      metadata = {}
       try:
-         test1 = das_response2[0]["release"][0]["name"]=="unknown" or dataset.cmssw_release == das_response2[0]["release"][0]["name"], 
-         test2 = dataset.datatype == das_response1[0]["dataset"][0]["datatype"],
-         test3 = dataset.nevents == das_response1[0]["dataset"][0]["nevents"], 
-         test4 = dataset.dsize == das_response1[0]["dataset"][0]["size"]
+        metadata = query_das(dataset.name)
+      except:
+        result.append([dataset,"Inconsistent with DAS"])
+        print "%s (imported on %s) -- Error getting dataset in DAS"%(str(dataset.name),str(dataset.creation_time))
+        continue
+        
+      # perform some checks: 
+      try:
+        # release name either matches or is unknown in DAS
+        test1 = str(metadata[u'release'])=="unknown" or dataset.cmssw_release == str(metadata[u'release'])
+        # datatype matches
+        test2 = dataset.datatype == metadata[u'datatype']
+        # nevents matches
+        test3 = dataset.nevents == metadata[u'nevents']
+        # size matches
+        test4 = dataset.dsize == metadata[u'file_size']
       except:
          result.append([dataset,"Inconsistent with DAS"])
          print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
