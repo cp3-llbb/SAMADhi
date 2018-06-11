@@ -3,10 +3,12 @@
 # Script to do basic checks to the database and output statistics on usage and issues
 
 import os,errno,json
+import re
 import ROOT
 ROOT.gROOT.SetBatch()
 from optparse import OptionParser, OptionGroup
 from datetime import date
+from collections import defaultdict
 from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, DbStore
 from storm.info import get_cls_info
 from datetime import datetime
@@ -94,6 +96,14 @@ def main():
       with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
         json.dump(outputDict, outfile, default=encode_storm_object)
 	force_symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
+
+    # finally, some stats about Analysis objects
+    outputDict = {}
+    outputDict["AnalysisStatistics"] = analyzeAnalysisStatistics(dbstore,opts)
+    if not opts.dryRun:
+      with open(opts.path+'/AnalysisAnalysisReport.json', 'w') as outfile:
+        json.dump(outputDict, outfile, default=encode_storm_object)
+        force_symlink(opts.path+'/AnalysisAnalysisReport.json',opts.basedir+'/data/AnalysisAnalysisReport.json')
 
 def collectGeneralStats(dbstore,opts):
     # get number of datasets, samples, results, analyses
@@ -397,6 +407,78 @@ def checkSampleConsistency(dbstore,opts):
     if len(array)==0: print "None"
     return array
 
+def analyzeAnalysisStatistics(dbstore,opts):
+    stats = {}
+    # ROOT output
+    if not opts.dryRun:
+      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
+    # contact
+    output =  dbstore.execute("select analysis.contact,COUNT(analysis.analysis_id) as numOfAnalysis FROM analysis GROUP BY contact")
+    stats["analysisContacts"] = output.get_all()
+    contactPie = ROOT.TPie("AnalysisContactPie","Analysis contacts",len(stats["analysisContacts"]))
+    for index,entry in enumerate(stats["analysisContacts"]):
+      contactPie.SetEntryVal(index,entry[1])
+      contactPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    contactPie.SetTextAngle(0);
+    contactPie.SetRadius(0.3);
+    contactPie.SetTextColor(1);
+    contactPie.SetTextFont(62);
+    contactPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("analysisContact","",2)
+    contactPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # analysis size in terms of results (pie)
+    output =  dbstore.execute("select analysis.description,COUNT(result.result_id) as numOfResults  FROM result INNER JOIN analysis ON result.analysis_id=analysis.analysis_id GROUP BY result.analysis_id;")
+    stats["analysisResults"] = output.get_all()
+    resultPie = ROOT.TPie("AnalysisResultsPie","Analysis results",len(stats["analysisResults"]))
+    for index,entry in enumerate(stats["analysisResults"]):
+      resultPie.SetEntryVal(index,entry[1])
+      resultPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    resultPie.SetTextAngle(0);
+    resultPie.SetRadius(0.3);
+    resultPie.SetTextColor(1);
+    resultPie.SetTextFont(62);
+    resultPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("analysisResults","",2)
+    resultPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # stats to collect: group distribution (from CADI line) (pie)
+    analyses = dbstore.find(Analysis)
+    regex = r".*([A-Z]{3})-\d{2}-\d{3}"
+    stats["physicsGroup"] = defaultdict(int)
+    for analysis in analyses:
+        m = re.search(regex,analysis.cadiline)
+        physicsGroup = "NONE"
+        if m: 
+            physicsGroup = m.group(1)
+        stats["physicsGroup"][physicsGroup] += 1
+    stats["physicsGroup"] = dict(stats["physicsGroup"])
+
+    # the end of the loop, we have all what we need to fill a pie chart.
+    physicsGroupPie = ROOT.TPie("physicsGroupPie","Physics groups",len(stats["physicsGroup"]))
+    for index,(group,count) in enumerate(stats["physicsGroup"].iteritems()):
+      physicsGroupPie.SetEntryVal(index,count)
+      physicsGroupPie.SetEntryLabel(index,group)
+    physicsGroupPie.SetTextAngle(0);
+    physicsGroupPie.SetRadius(0.3);
+    physicsGroupPie.SetTextColor(1);
+    physicsGroupPie.SetTextFont(62);
+    physicsGroupPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("physicsGroup","",2)
+    physicsGroupPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # some printout
+    print "\nAnalysis Statistics extracted."
+    print '================================'
+    # ROOT output
+    if not opts.dryRun:
+      rootfile.Write();
+      rootfile.Close();
+    # JSON output
+    return stats
 
 def analyzeResultsStatistics(dbstore,opts):
     stats = {}
