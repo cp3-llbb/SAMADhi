@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 """ Simple script to compute the luminosity of a set of samples """
 
 import subprocess
