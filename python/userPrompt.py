@@ -1,4 +1,3 @@
-#!/nfs/soft/python/python-2.7.5-sl6_amd64_gcc44/bin/python
 from cp3_llbb.SAMADhi.SAMADhi import Sample, Dataset
 
 def confirm(prompt=None, resp=False):
