@@ -32,7 +32,8 @@ and the install tree location can be set with the `--install` option.
 
 
 To start the xataface interface in a docker image:
+```
 docker build -t samadhi-web .
 docker run -d --name samadhi-frontend -p 8070:80 --link samadhi-mysql:mysql --rm  samadhi-web
-
+```
 where samadhi-mysql is a running mysql container configured with the proper database and set to use the default auth method (see example in database/).
