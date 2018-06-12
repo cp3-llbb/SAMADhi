@@ -478,6 +478,7 @@ def analyzeAnalysisStatistics(dbstore,opts):
       rootfile.Write();
       rootfile.Close();
     # JSON output
+    stats["physicsGroup"] = [ [a,b] for (a,b) in stats["physicsGroup"].items()]
     return stats
 
 def analyzeResultsStatistics(dbstore,opts):
