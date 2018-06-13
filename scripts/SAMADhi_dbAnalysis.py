@@ -3,15 +3,17 @@
 # Script to do basic checks to the database and output statistics on usage and issues
 
 import os,errno,json
+import re
 import ROOT
 ROOT.gROOT.SetBatch()
 from optparse import OptionParser, OptionGroup
 from datetime import date
-from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Result, MadWeight, DbStore
+from collections import defaultdict
+from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, DbStore
 from storm.info import get_cls_info
 from datetime import datetime
 from collections import defaultdict
-from das_import import get_data
+from cp3_llbb.SAMADhi.das_import import query_das
 
 class MyOptionParser:
     """
@@ -32,34 +34,6 @@ class MyOptionParser:
         self.parser.add_option("-d","--dry", action="store_true",
                                dest="dryRun", default=False,
              help="Dry run: do no write to disk")
-        # ---- DAS options 
-        das_group = OptionGroup(self.parser,"DAS options",
-                                "The following options control the communication with the DAS server")
-        msg  = "host name of DAS cache server, default is https://cmsweb.cern.ch"
-        das_group.add_option("--host", action="store", type="string",
-                       default='https://cmsweb.cern.ch', dest="host", help=msg)
-        msg  = "index for returned result"
-        das_group.add_option("--idx", action="store", type="int",
-                               default=0, dest="idx", help=msg)
-        msg  = 'query waiting threshold in sec, default is 5 minutes'
-        das_group.add_option("--threshold", action="store", type="int",
-                               default=300, dest="threshold", help=msg)
-        msg  = 'specify private key file name'
-        das_group.add_option("--key", action="store", type="string",
-                               default="", dest="ckey", help=msg)
-        msg  = 'specify private certificate file name'
-        das_group.add_option("--cert", action="store", type="string",
-                               default="", dest="cert", help=msg)
-        msg = 'specify number of retries upon busy DAS server message'
-        das_group.add_option("--retry", action="store", type="string",
-                               default=0, dest="retry", help=msg)
-        msg = 'drop DAS headers'
-        das_group.add_option("--das-headers", action="store_true",
-                               default=False, dest="das_headers", help=msg)
-        msg = 'verbose output'
-        das_group.add_option("-v", "--verbose", action="store",
-                               type="int", default=0, dest="verbose", help=msg)
-        self.parser.add_option_group(das_group)
 
     def get_opt(self):
         """
@@ -94,6 +68,7 @@ def main():
     # check datasets
     outputDict = {}
     outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else []
+    dbstore = DbStore() # reconnect, since the checkDatasets may take very long...
     outputDict["Orphans"] = findOrphanDatasets(dbstore,opts)
     outputDict["IncompleteData"] = checkDatasetsIntegrity(dbstore,opts)
     outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
@@ -123,6 +98,14 @@ def main():
         json.dump(outputDict, outfile, default=encode_storm_object)
 	force_symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
 
+    # finally, some stats about Analysis objects
+    outputDict = {}
+    outputDict["AnalysisStatistics"] = analyzeAnalysisStatistics(dbstore,opts)
+    if not opts.dryRun:
+      with open(opts.path+'/AnalysisAnalysisReport.json', 'w') as outfile:
+        json.dump(outputDict, outfile, default=encode_storm_object)
+        force_symlink(opts.path+'/AnalysisAnalysisReport.json',opts.basedir+'/data/AnalysisAnalysisReport.json')
+
 def collectGeneralStats(dbstore,opts):
     # get number of datasets, samples, results, analyses
     result = {}
@@ -146,25 +129,25 @@ def checkDatasets(dbstore,opts):
     print '=================================='
     result = []
     for dataset in datasets:
-      query1 = "dataset="+dataset.name+" | grep dataset.name, dataset.nevents, dataset.size, dataset.tag, dataset.datatype, dataset.creation_time"
-      query2 = "release dataset="+dataset.name+" | grep release.name"
-      query3 = "config dataset="+dataset.name+" | grep config.global_tag,config.name=cmsRun"
-      das_response1 = get_data(opts.host, query1, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      das_response2 = get_data(opts.host, query2, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      das_response3 = get_data(opts.host, query3, opts.idx, 1, opts.verbose, opts.threshold, opts.ckey, opts.cert, opts.das_headers)
-      tmp = [{u'dataset' : [{}]},]
-      for i in range(0,len(das_response1[0]["dataset"])):
-          if das_response1[0]["dataset"][i]["name"]==dataset.name:
-              for key in das_response1[0]["dataset"][i]:
-                  tmp[0]["dataset"][0][key] = das_response1[0]["dataset"][i][key]
-      if not "tag" in tmp[0]["dataset"][0]:
-          tmp[0]["dataset"][0][u'tag']=None
-      das_response1 = tmp
+      # query DAS to get the same dataset, by name
+      metadata = {}
       try:
-         test1 = das_response2[0]["release"][0]["name"]=="unknown" or dataset.cmssw_release == das_response2[0]["release"][0]["name"], 
-         test2 = dataset.datatype == das_response1[0]["dataset"][0]["datatype"],
-         test3 = dataset.nevents == das_response1[0]["dataset"][0]["nevents"], 
-         test4 = dataset.dsize == das_response1[0]["dataset"][0]["size"]
+        metadata = query_das(dataset.name)
+      except:
+        result.append([dataset,"Inconsistent with DAS"])
+        print "%s (imported on %s) -- Error getting dataset in DAS"%(str(dataset.name),str(dataset.creation_time))
+        continue
+        
+      # perform some checks: 
+      try:
+        # release name either matches or is unknown in DAS
+        test1 = str(metadata[u'release'])=="unknown" or dataset.cmssw_release == str(metadata[u'release'])
+        # datatype matches
+        test2 = dataset.datatype == metadata[u'datatype']
+        # nevents matches
+        test3 = dataset.nevents == metadata[u'nevents']
+        # size matches
+        test4 = dataset.dsize == metadata[u'file_size']
       except:
          result.append([dataset,"Inconsistent with DAS"])
          print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
@@ -215,6 +198,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # Releases used
     output =  dbstore.execute("select dataset.cmssw_release,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY cmssw_release")
     stats["cmssw_release"] = output.get_all()
+    if None in stats["cmssw_release"]: 
+        stats["cmssw_release"]["Unknown"] = stats["cmssw_release"][None] + stats["cmssw_release"].get("Unknown",0)
+        del stats["cmssw_release"][None]
     releasePie = ROOT.TPie("datasetReleasePie","Datasets release",len(stats["cmssw_release"]))
     for index,entry in enumerate(stats["cmssw_release"]):
       releasePie.SetEntryVal(index,entry[1])
@@ -231,6 +217,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # GlobalTag used
     output =  dbstore.execute("select dataset.globaltag,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY globaltag")
     stats["globaltag"] = output.get_all()
+    if None in stats["globaltag"]: 
+        stats["globaltag"]["Unknown"] = stats["globaltag"][None] + stats["globaltag"].get("Unknown",0)
+        del stats["globaltag"][None]
     globaltagPie = ROOT.TPie("datasetGTPie","Datasets globaltag",len(stats["globaltag"]))
     for index,entry in enumerate(stats["globaltag"]):
       globaltagPie.SetEntryVal(index,entry[1])
@@ -247,6 +236,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # Datatype
     output =  dbstore.execute("select dataset.datatype,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY datatype")
     stats["datatype"] = output.get_all()
+    if None in stats["datatype"]: 
+        stats["datatype"]["Unknown"] = stats["datatype"][None] + stats["datatype"].get("Unknown",0)
+        del stats["datatype"][None]
     datatypePie = ROOT.TPie("datasetTypePie","Datasets datatype",len(stats["datatype"]))
     for index,entry in enumerate(stats["datatype"]):
       datatypePie.SetEntryVal(index,entry[1])
@@ -425,6 +417,88 @@ def checkSampleConsistency(dbstore,opts):
     if len(array)==0: print "None"
     return array
 
+def analyzeAnalysisStatistics(dbstore,opts):
+    stats = {}
+    # ROOT output
+    if not opts.dryRun:
+      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
+    # contact
+    output =  dbstore.execute("select analysis.contact,COUNT(analysis.analysis_id) as numOfAnalysis FROM analysis GROUP BY contact")
+    stats["analysisContacts"] = output.get_all()
+    if None in stats["analysisContacts"]: 
+        stats["analysisContacts"]["Unknown"] = stats["analysisContacts"][None] + stats["analysisContacts"].get("Unknown",0)
+        del stats["analysisContacts"][None]
+    contactPie = ROOT.TPie("AnalysisContactPie","Analysis contacts",len(stats["analysisContacts"]))
+    for index,entry in enumerate(stats["analysisContacts"]):
+      contactPie.SetEntryVal(index,entry[1])
+      contactPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    contactPie.SetTextAngle(0);
+    contactPie.SetRadius(0.3);
+    contactPie.SetTextColor(1);
+    contactPie.SetTextFont(62);
+    contactPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("analysisContact","",2)
+    contactPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # analysis size in terms of results (pie)
+    output =  dbstore.execute("select analysis.description,COUNT(result.result_id) as numOfResults  FROM result INNER JOIN analysis ON result.analysis_id=analysis.analysis_id GROUP BY result.analysis_id;")
+    stats["analysisResults"] = output.get_all()
+    if None in stats["analysisResults"]: 
+        stats["analysisResults"]["Unknown"] = stats["analysisResults"][None] + stats["analysisResults"].get("Unknown",0)
+        del stats["analysisResults"][None]
+    resultPie = ROOT.TPie("AnalysisResultsPie","Analysis results",len(stats["analysisResults"]))
+    for index,entry in enumerate(stats["analysisResults"]):
+      resultPie.SetEntryVal(index,entry[1])
+      resultPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
+    resultPie.SetTextAngle(0);
+    resultPie.SetRadius(0.3);
+    resultPie.SetTextColor(1);
+    resultPie.SetTextFont(62);
+    resultPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("analysisResults","",2)
+    resultPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # stats to collect: group distribution (from CADI line) (pie)
+    analyses = dbstore.find(Analysis)
+    regex = r".*([A-Z]{3})-\d{2}-\d{3}"
+    stats["physicsGroup"] = defaultdict(int)
+    for analysis in analyses:
+        m = re.search(regex,analysis.cadiline)
+        physicsGroup = "NONE"
+        if m: 
+            physicsGroup = m.group(1)
+        stats["physicsGroup"][physicsGroup] += 1
+    stats["physicsGroup"] = dict(stats["physicsGroup"])
+    if None in stats["physicsGroup"]: 
+        stats["physicsGroup"]["Unknown"] = stats["physicsGroup"][None] + stats["physicsGroup"].get("Unknown",0)
+        del stats["physicsGroup"][None]
+
+    # the end of the loop, we have all what we need to fill a pie chart.
+    physicsGroupPie = ROOT.TPie("physicsGroupPie","Physics groups",len(stats["physicsGroup"]))
+    for index,(group,count) in enumerate(stats["physicsGroup"].iteritems()):
+      physicsGroupPie.SetEntryVal(index,count)
+      physicsGroupPie.SetEntryLabel(index,group)
+    physicsGroupPie.SetTextAngle(0);
+    physicsGroupPie.SetRadius(0.3);
+    physicsGroupPie.SetTextColor(1);
+    physicsGroupPie.SetTextFont(62);
+    physicsGroupPie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas("physicsGroup","",2)
+    physicsGroupPie.Draw("r")
+    if not opts.dryRun:
+      ROOT.gPad.Write()
+    # some printout
+    print "\nAnalysis Statistics extracted."
+    print '================================'
+    # ROOT output
+    if not opts.dryRun:
+      rootfile.Write();
+      rootfile.Close();
+    # JSON output
+    stats["physicsGroup"] = [ [a,b] for (a,b) in stats["physicsGroup"].items()]
+    return stats
 
 def analyzeResultsStatistics(dbstore,opts):
     stats = {}
@@ -434,6 +508,9 @@ def analyzeResultsStatistics(dbstore,opts):
     #authors statistics
     output =  dbstore.execute("select result.author,COUNT(result.result_id) as numOfResults FROM result GROUP BY author")
     stats["resultsAuthors"] = output.get_all()
+    if None in stats["resultsAuthors"]: 
+        stats["resultsAuthors"]["Unknown"] = stats["resultsAuthors"][None] + stats["resultsAuthors"].get("Unknown",0)
+        del stats["resultsAuthors"][None]
     authorPie = ROOT.TPie("resultsAuthorsPie","Results authors",len(stats["resultsAuthors"]))
     for index,entry in enumerate(stats["resultsAuthors"]):
       authorPie.SetEntryVal(index,entry[1])
@@ -490,6 +567,9 @@ def analyzeSampleStatistics(dbstore,opts):
     #authors statistics
     output =  dbstore.execute("select sample.author,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY author")
     stats["sampleAuthors"] = output.get_all()
+    if None in stats["sampleAuthors"]: 
+        stats["sampleAuthors"]["Unknown"] = stats["sampleAuthors"][None] + stats["sampleAuthors"].get("Unknown",0)
+        del stats["sampleAuthors"][None]
     authorPie = ROOT.TPie("sampleAuthorsPie","Samples authors",len(stats["sampleAuthors"]))
     for index,entry in enumerate(stats["sampleAuthors"]):
       authorPie.SetEntryVal(index,entry[1])
@@ -506,6 +586,9 @@ def analyzeSampleStatistics(dbstore,opts):
     #sample types statistics
     output =  dbstore.execute("select sample.sampletype,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY sampletype")
     stats["sampleTypes"] = output.get_all()
+    if None in stats["sampleTypes"]: 
+        stats["sampleTypes"]["Unknown"] = stats["sampleTypes"][None] + stats["sampleTypes"].get("Unknown",0)
+        del stats["sampleTypes"][None]
     typePie = ROOT.TPie("sampleTypesPie","Samples types",len(stats["sampleTypes"]))
     for index,entry in enumerate(stats["sampleTypes"]):
       typePie.SetEntryVal(index,entry[1])

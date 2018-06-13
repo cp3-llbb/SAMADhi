@@ -1,0 +1,17 @@
+{use_macro file="Dataface_Main_Template.html"}
+    {fill_slot name="custom_stylesheets"}
+       <!-- Bootstrap Core CSS -->
+       <link href="dashboard/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+       <!-- MetisMenu CSS -->
+       <link href="dashboard/vendor/metisMenu/metisMenu.min.css" rel="stylesheet">
+       <!-- Custom CSS -->
+       <link href="dashboard/css/sb-admin-2.css" rel="stylesheet">
+       <!-- Custom Fonts -->
+       <link href="dashboard/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+       <!-- SAMADhi customizations -->
+       <link href="dashboard/css/webAccess.css" rel="stylesheet">
+    {/fill_slot}
+    {fill_slot name="main_column"}
+       {php}include "dashboard/pages/resultsReport.php";{/php}
+    {/fill_slot}
+{/use_macro}
