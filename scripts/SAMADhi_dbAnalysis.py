@@ -68,6 +68,7 @@ def main():
     # check datasets
     outputDict = {}
     outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else []
+    dbstore = DbStore() # reconnect, since the checkDatasets may take very long...
     outputDict["Orphans"] = findOrphanDatasets(dbstore,opts)
     outputDict["IncompleteData"] = checkDatasetsIntegrity(dbstore,opts)
     outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
@@ -197,6 +198,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # Releases used
     output =  dbstore.execute("select dataset.cmssw_release,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY cmssw_release")
     stats["cmssw_release"] = output.get_all()
+    if None in stats["cmssw_release"]: 
+        stats["cmssw_release"]["Unknown"] = stats["cmssw_release"][None] + stats["cmssw_release"].get("Unknown",0)
+        del stats["cmssw_release"][None]
     releasePie = ROOT.TPie("datasetReleasePie","Datasets release",len(stats["cmssw_release"]))
     for index,entry in enumerate(stats["cmssw_release"]):
       releasePie.SetEntryVal(index,entry[1])
@@ -213,6 +217,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # GlobalTag used
     output =  dbstore.execute("select dataset.globaltag,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY globaltag")
     stats["globaltag"] = output.get_all()
+    if None in stats["globaltag"]: 
+        stats["globaltag"]["Unknown"] = stats["globaltag"][None] + stats["globaltag"].get("Unknown",0)
+        del stats["globaltag"][None]
     globaltagPie = ROOT.TPie("datasetGTPie","Datasets globaltag",len(stats["globaltag"]))
     for index,entry in enumerate(stats["globaltag"]):
       globaltagPie.SetEntryVal(index,entry[1])
@@ -229,6 +236,9 @@ def analyzeDatasetsStatistics(dbstore,opts):
     # Datatype
     output =  dbstore.execute("select dataset.datatype,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY datatype")
     stats["datatype"] = output.get_all()
+    if None in stats["datatype"]: 
+        stats["datatype"]["Unknown"] = stats["datatype"][None] + stats["datatype"].get("Unknown",0)
+        del stats["datatype"][None]
     datatypePie = ROOT.TPie("datasetTypePie","Datasets datatype",len(stats["datatype"]))
     for index,entry in enumerate(stats["datatype"]):
       datatypePie.SetEntryVal(index,entry[1])
@@ -415,6 +425,9 @@ def analyzeAnalysisStatistics(dbstore,opts):
     # contact
     output =  dbstore.execute("select analysis.contact,COUNT(analysis.analysis_id) as numOfAnalysis FROM analysis GROUP BY contact")
     stats["analysisContacts"] = output.get_all()
+    if None in stats["analysisContacts"]: 
+        stats["analysisContacts"]["Unknown"] = stats["analysisContacts"][None] + stats["analysisContacts"].get("Unknown",0)
+        del stats["analysisContacts"][None]
     contactPie = ROOT.TPie("AnalysisContactPie","Analysis contacts",len(stats["analysisContacts"]))
     for index,entry in enumerate(stats["analysisContacts"]):
       contactPie.SetEntryVal(index,entry[1])
@@ -431,6 +444,9 @@ def analyzeAnalysisStatistics(dbstore,opts):
     # analysis size in terms of results (pie)
     output =  dbstore.execute("select analysis.description,COUNT(result.result_id) as numOfResults  FROM result INNER JOIN analysis ON result.analysis_id=analysis.analysis_id GROUP BY result.analysis_id;")
     stats["analysisResults"] = output.get_all()
+    if None in stats["analysisResults"]: 
+        stats["analysisResults"]["Unknown"] = stats["analysisResults"][None] + stats["analysisResults"].get("Unknown",0)
+        del stats["analysisResults"][None]
     resultPie = ROOT.TPie("AnalysisResultsPie","Analysis results",len(stats["analysisResults"]))
     for index,entry in enumerate(stats["analysisResults"]):
       resultPie.SetEntryVal(index,entry[1])
@@ -455,6 +471,9 @@ def analyzeAnalysisStatistics(dbstore,opts):
             physicsGroup = m.group(1)
         stats["physicsGroup"][physicsGroup] += 1
     stats["physicsGroup"] = dict(stats["physicsGroup"])
+    if None in stats["physicsGroup"]: 
+        stats["physicsGroup"]["Unknown"] = stats["physicsGroup"][None] + stats["physicsGroup"].get("Unknown",0)
+        del stats["physicsGroup"][None]
 
     # the end of the loop, we have all what we need to fill a pie chart.
     physicsGroupPie = ROOT.TPie("physicsGroupPie","Physics groups",len(stats["physicsGroup"]))
@@ -489,6 +508,9 @@ def analyzeResultsStatistics(dbstore,opts):
     #authors statistics
     output =  dbstore.execute("select result.author,COUNT(result.result_id) as numOfResults FROM result GROUP BY author")
     stats["resultsAuthors"] = output.get_all()
+    if None in stats["resultsAuthors"]: 
+        stats["resultsAuthors"]["Unknown"] = stats["resultsAuthors"][None] + stats["resultsAuthors"].get("Unknown",0)
+        del stats["resultsAuthors"][None]
     authorPie = ROOT.TPie("resultsAuthorsPie","Results authors",len(stats["resultsAuthors"]))
     for index,entry in enumerate(stats["resultsAuthors"]):
       authorPie.SetEntryVal(index,entry[1])
@@ -545,6 +567,9 @@ def analyzeSampleStatistics(dbstore,opts):
     #authors statistics
     output =  dbstore.execute("select sample.author,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY author")
     stats["sampleAuthors"] = output.get_all()
+    if None in stats["sampleAuthors"]: 
+        stats["sampleAuthors"]["Unknown"] = stats["sampleAuthors"][None] + stats["sampleAuthors"].get("Unknown",0)
+        del stats["sampleAuthors"][None]
     authorPie = ROOT.TPie("sampleAuthorsPie","Samples authors",len(stats["sampleAuthors"]))
     for index,entry in enumerate(stats["sampleAuthors"]):
       authorPie.SetEntryVal(index,entry[1])
@@ -561,6 +586,9 @@ def analyzeSampleStatistics(dbstore,opts):
     #sample types statistics
     output =  dbstore.execute("select sample.sampletype,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY sampletype")
     stats["sampleTypes"] = output.get_all()
+    if None in stats["sampleTypes"]: 
+        stats["sampleTypes"]["Unknown"] = stats["sampleTypes"][None] + stats["sampleTypes"].get("Unknown",0)
+        del stats["sampleTypes"][None]
     typePie = ROOT.TPie("sampleTypesPie","Samples types",len(stats["sampleTypes"]))
     for index,entry in enumerate(stats["sampleTypes"]):
       typePie.SetEntryVal(index,entry[1])
