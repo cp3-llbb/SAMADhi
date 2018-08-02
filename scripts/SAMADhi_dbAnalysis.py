@@ -112,10 +112,11 @@ def collectGeneralStats(dbstore,opts):
     results = dbstore.find(Result)
     samples = dbstore.find(Sample)
     datasets = dbstore.find(Dataset)
+    analyses = dbstore.find(Analysis)
     result["nDatasets"] = datasets.count()
     result["nSamples"] = samples.count()
     result["nResults"] = results.count()
-    result["nAnalyses"] = 0
+    result["nAnalyses"] = analyses.count()
     print "\nGeneral statistics:"
     print '======================'
     print datasets.count(), " datasets"
