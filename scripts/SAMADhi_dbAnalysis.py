@@ -710,6 +710,7 @@ def copyInconsistencies(basedir):
     except IOError:
         # no file. Return an empty string.
         # This will happen if basedir is not (properly) set or if it is new.
+        print("No previous dataset analysis report found in path. The Database inconsistencies will be empty.")
         return []
     except KeyError:
         # no proper key. Return an empty string.
