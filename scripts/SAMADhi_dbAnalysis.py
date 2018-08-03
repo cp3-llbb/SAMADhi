@@ -67,7 +67,7 @@ def main():
  
     # check datasets
     outputDict = {}
-    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else []
+    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else copyInconsistencies(opts.basedir)
     dbstore = DbStore() # reconnect, since the checkDatasets may take very long...
     outputDict["Orphans"] = findOrphanDatasets(dbstore,opts)
     outputDict["IncompleteData"] = checkDatasetsIntegrity(dbstore,opts)
@@ -112,10 +112,11 @@ def collectGeneralStats(dbstore,opts):
     results = dbstore.find(Result)
     samples = dbstore.find(Sample)
     datasets = dbstore.find(Dataset)
+    analyses = dbstore.find(Analysis)
     result["nDatasets"] = datasets.count()
     result["nSamples"] = samples.count()
     result["nResults"] = results.count()
-    result["nAnalyses"] = 0
+    result["nAnalyses"] = analyses.count()
     print "\nGeneral statistics:"
     print '======================'
     print datasets.count(), " datasets"
@@ -698,6 +699,24 @@ def force_symlink(file1, file2):
         if e.errno == errno.EEXIST:
             os.remove(file2)
             os.symlink(file1, file2)
+
+def copyInconsistencies(basedir):
+    # try to read inconsistencies from previous job
+    # the file must be there and must contain the relevant data
+    try:
+        with open(basedir+'/data/DatasetsAnalysisReport.json') as jfile:
+            content = json.load(jfile)
+            return content["DatabaseInconsistencies"]
+    except IOError:
+        # no file. Return an empty string.
+        # This will happen if basedir is not (properly) set or if it is new.
+        print("No previous dataset analysis report found in path. The Database inconsistencies will be empty.")
+        return []
+    except KeyError:
+        # no proper key. Return an empty string.
+        # This should not happen, so print a warning.
+        print("No DatabaseInconsistencies key in the previous json file ?!")
+        return []
 
 #
 # main
