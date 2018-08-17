@@ -92,6 +92,7 @@ checkAndPrepend "PYTHONPATH" "${pysitedir}"
 checkAndPrepend "PYTHONPATH" "${installpath}/lib64/python${pymajmin}/site-packages"
 ( ${python} -c "import MySQLdb" > /dev/null 2> /dev/null ) || ${python} -m pip install --prefix="${installpath}" MySQL-python
 ( ${python} -c "import storm"   > /dev/null 2> /dev/null ) || ${python} -m pip install --prefix="${installpath}" storm
+( ${python} -c "import ROOT"   > /dev/null 2> /dev/null ) || ${python} -m pip install --prefix="${installpath}" storm
 
 ## Install SAMADhi
 if [[ ! -d "${pysitedir}/cp3_llbb" ]]; then

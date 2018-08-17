@@ -10,6 +10,7 @@ from optparse import OptionParser, OptionGroup
 from datetime import date
 from collections import defaultdict
 from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, DbStore
+from cp3_llbb.SAMADhi.SAMADhi import File as SFile
 from storm.info import get_cls_info
 from datetime import datetime
 from collections import defaultdict
@@ -342,13 +343,31 @@ def checkSamplePath(dbstore,opts):
     array = []
     for sample in result:
       # check that the path exists, and keep track of the sample if not the case.
-      if not os.path.exists(sample.path):
-        print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
-        print " missing path: %s" %sample.path
-        array.append(sample)
+      vpath = getSamplePath(sample,dbstore)
+      for path in vpath:
+        if not os.path.exists(path):
+          print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
+          print " missing path: %s" %path
+          print vpath
+          array.append(sample)
+          break
     if len(array)==0: print "None"
     return array
 
+def getSamplePath(sample,dbstore):
+    vpath=[]
+    # the path should be stored in sample.path
+    # if it is empty, look for files in that path
+    if sample.path=="":
+      regex = r".*SFN=(.*)"
+      files = dbstore.find(SFile, SFile.sample_id==sample.sample_id)
+      for file in files:
+        m = re.search(regex,str(file.pfn))
+        if m: vpath.append(os.path.dirname(m.group(1)))
+      vpath=list(set(vpath))
+      return vpath
+    else:
+      return [sample.path]
 
 def selectResults(dbstore,opts):
     # look for result records pointing to a ROOT file
@@ -466,7 +485,7 @@ def analyzeAnalysisStatistics(dbstore,opts):
     regex = r".*([A-Z]{3})-\d{2}-\d{3}"
     stats["physicsGroup"] = defaultdict(int)
     for analysis in analyses:
-        m = re.search(regex,analysis.cadiline)
+        m = re.search(regex,str(analysis.cadiline))
         physicsGroup = "NONE"
         if m: 
             physicsGroup = m.group(1)
