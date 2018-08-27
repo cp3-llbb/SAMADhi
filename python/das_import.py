@@ -70,10 +70,18 @@ def query_das(dataset):
         for key, value in d.items():
             metadata[key] = value
 
+    # Set release in global tag
     metadata.update({
         u'release': unicode(release_results["data"][0]["release"][0]["name"][0]),
         u'globalTag': unicode(config_results["data"][0]["config"][0]["global_tag"])
     })
+
+    # Last chance for the global tag
+    for d in config_results["data"]:
+      if metadata[u'globalTag']==u'UNKNOWN':
+        metadata[u'globalTag']=unicode(d["config"][0]["global_tag"])
+    if metadata[u'globalTag']==u'UNKNOWN':
+      del metadata[u'globalTag']
 
     return metadata
 
