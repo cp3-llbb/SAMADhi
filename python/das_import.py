@@ -2,8 +2,8 @@ import re
 import json
 import subprocess
 
-from .SAMADhi import Dataset, DbStore
-from .userPrompt import confirm
+from .SAMADhi import Dataset, SAMADhiDB
+from .userPrompt import confirm_transaction
 
 def do_das_query(query):
     """
@@ -14,31 +14,6 @@ def do_das_query(query):
     result = subprocess.check_output(args)
 
     return json.loads(result)
-
-def fillDataset(dataset, dct):
-  """
-  Fill an instance of Dataset with values from a dictionnary
-  """
-  import datetime
-
-  # definition of the conversion key -> column
-  conversion = { "process": u'process', 
-                 "user_comment": u'comment',
-                 "energy": u'energy',
-                 "nevents": u'nevents',
-                 "cmssw_release": u'release',
-                 "dsize": u'file_size',
-                 "globaltag": u'globalTag',
-                 "xsection": u'xsection' }
-
-  for column, key in conversion.items():
-    setattr(dataset, column, dct[key])
-
-  # special cases
-  #dataset.creation_time = datetime.datetime.strptime(dct[u'creation_time'], "%Y-%m-%d %H:%M:%S")
-  dataset.creation_time = datetime.datetime.fromtimestamp(dct[u'creation_time'])
-
-  return dataset
 
 def query_das(dataset):
     """
@@ -55,7 +30,7 @@ def query_das(dataset):
     release_results = do_das_query(release_query)
     config_results = do_das_query(config_query)
 
-    if not 'nresults' in summary_results:
+    if 'nresults' not in summary_results:
         raise Exception("Invalid DAS response")
 
     if summary_results['nresults'] > 1:
@@ -72,16 +47,16 @@ def query_das(dataset):
 
     # Set release in global tag
     metadata.update({
-        u'release': unicode(release_results["data"][0]["release"][0]["name"][0]),
-        u'globalTag': unicode(config_results["data"][0]["config"][0]["global_tag"])
+        'release': release_results["data"][0]["release"][0]["name"][0],
+        'globalTag': config_results["data"][0]["config"][0]["global_tag"]
     })
 
     # Last chance for the global tag
     for d in config_results["data"]:
-      if metadata[u'globalTag']==u'UNKNOWN':
-        metadata[u'globalTag']=unicode(d["config"][0]["global_tag"])
-    if metadata[u'globalTag']==u'UNKNOWN':
-      del metadata[u'globalTag']
+      if metadata['globalTag']=='UNKNOWN':
+        metadata['globalTag']=d["config"][0]["global_tag"]
+    if metadata['globalTag']=='UNKNOWN':
+      del metadata['globalTag']
 
     return metadata
 
@@ -102,7 +77,6 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
             energy = float(energyRe.group(1))
 
     metadata = query_das(dataset)
-
     metadata.update({
         u"process": unicode(process),
         u"xsection": xsection, 
@@ -110,33 +84,26 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
         u"comment": unicode(comment)
     })
 
-    # Connect to the database
-    dbstore = DbStore()
+    # definition of the conversion key -> column
+    column_conversion = {
+            "process": u'process', 
+            "user_comment": u'comment',
+            "energy": u'energy',
+            "nevents": u'nevents',
+            "cmssw_release": u'release',
+            "dsize": u'file_size',
+            "globaltag": u'globalTag',
+            "xsection": u'xsection'
+            }
+    # columns of the dataset to create (if needed)
+    dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
+    dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata[u"creation_time"])
 
-    # Check if the dataset is already in the dataset
-    update = False
-    dbResult = dbstore.find(Dataset, Dataset.name == unicode(metadata['name']))
-    if (dbResult.is_empty()):
-        dataset = Dataset(metadata['name'], metadata['datatype'])
-    else:
-        update = True
-        dataset = dbResult.one()
-
-    fillDataset(dataset, metadata)
-
-    if prompt:
-        if not update:
-            dbstore.add(dataset)
-            dbstore.flush()
-
-        print dataset
-        prompt = "Insert into the database?" if not update else "Update this dataset?"
-        if confirm(prompt=prompt, resp=True):
-            dbstore.commit()
-        else:
-            dbstore.rollback()
-
-    else:
-        if not update:
-            dbstore.add(dataset)
-        dbstore.commit()
+    with SAMADhiDB() as db:
+        existing = Dataset.get_or_none(Dataset.name == metadata["name"])
+        with confirm_transaction(db, "Insert into the database?" if existing is None else "Update this dataset?"):
+            dataset, created = Dataset.get_or_create(
+                    name=metadata["name"], datatype=metadata["datatype"],
+                    defaults=dset_columns
+                    )
+            print(dataset)

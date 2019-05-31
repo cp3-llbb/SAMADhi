@@ -25,83 +25,113 @@ def confirm(prompt=None, resp=False):
         if not ans:
             return resp
         if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
+            print('please enter y or n.')
             continue
         if ans == 'y' or ans == 'Y':
             return True
         if ans == 'n' or ans == 'N':
             return False
 
-def parse_samples(inputString):
-  """parse a comma-separated list of samples"""
-  return [ int(x) for x in inputString.split(',') ]
+def prompt_samples():
+    """prompts for the source sample among the existing ones"""
+    print("No source sample defined.")
+    print("Please select the samples associated with this result.")
+    # full list of samples
+    print("Sample\t\tName")
+    for smp in Sample.select():
+        print("%i\t\t%s"%(smp.sample_id, smp.name))
+    # prompt
+    while True:
+        try:
+            return [ int(x) for x in raw_input("Comma-separated list of sample id [None]?").split(",") ]
+        except:
+            continue
 
-def prompt_samples(store):
-  """prompts for the source sample among the existing ones"""
-  print "No source sample defined."
-  print "Please select the samples associated with this result."
-  # full list of samples
-  print "Sample\t\tName"
-  check = store.find(Sample)
-  all_samples = check.values(Sample.sample_id,Sample.name)
-  for dset in all_samples:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      return parse_samples(raw_input("Comma-separated list of sample id [None]?"))
-    except:
-      continue
+def prompt_sample(sample):
+    """prompts for the source sample among the existing ones"""
+    print("Please select the sample associated with this sample.")
+    # full list of samples
+    print("Sample\t\tName")
+    for smp in Sample.select():
+        print("%i\t\t%s"%(smp.sample_id, smp.name))
+    # prompt
+    while True:
+        try:
+            ans = int(raw_input("Sample id [None]?"))
+        except:
+            sample.source_sample_id = None
+            return
+        smp_db = Sample.get_or_none(Sample.sample_id == ans)
+        if smp_db is not None:
+            sample.source_sample_id = smp_db.sample_id
+        else:
+            continue 
 
-def prompt_sample(sample,store):
-  """prompts for the source sample among the existing ones"""
-  print "Please select the sample associated with this sample."
-  # full list of samples
-  print "Sample\t\tName"
-  check = store.find(Sample)
-  all_samples = check.values(Sample.sample_id,Sample.name)
-  for dset in all_samples:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      ans = int(raw_input("Sample id [None]?"))
-    except:
-      sample.source_sample_id = None
-      return
-    check = store.find(Sample,Sample.sample_id==ans)
-    if check.is_empty(): continue
-    else:
-      sample.source_sample_id = ans
-      return
+def prompt_dataset(sample):
+    """prompts for the source dataset among the existing ones"""
+    print("Please select the dataset associated with this sample.")
+    # full list of datasets
+    print("Dataset\t\tName")
+    for ds in Dataset.select():
+        print("%i\t\t%s"%(ds.dataset_id, ds.name))
+    # datasets whose name contain the sample name
+    suggestions = Dataset.select().where(Dataset.name.contains(sample.name))
+    if suggestions.count() > 0:
+        print("Suggestions:")
+        print("Dataset\t\tName")
+        suggested_datasets = check.values(Dataset.dataset_id,Dataset.name)
+        for ds in suggested_datasets:
+            print("%i\t\t%s"%(ds.dataset_id, ds.name))
+    # prompt
+    while True:
+        try:
+            ans = int(raw_input("Dataset id [None]?"))
+        except:
+            sample.source_dataset_id = None
+            return
+        dset_db = Dataset.get_or_none(Dataset.dataset_idSample == ans)
+        if dset_db is not None:
+            sample.source_dataset_id = ans
+        else:
+            continue
 
-def prompt_dataset(sample,store):
-  """prompts for the source dataset among the existing ones"""
-  print "Please select the dataset associated with this sample."
-  # full list of datasets
-  print "Dataset\t\tName"
-  check = store.find(Dataset)
-  all_datasets = check.values(Dataset.dataset_id,Dataset.name)
-  for dset in all_datasets:
-    print "%i\t\t%s"%(dset[0], dset[1])
-  # datasets whose name contain the sample name
-  check = store.find(Dataset,Dataset.name.contains_string(sample.name))
-  if not check.is_empty():
-    print "Suggestions:"
-    print "Dataset\t\tName"
-    suggested_datasets = check.values(Dataset.dataset_id,Dataset.name)
-    for dset in suggested_datasets:
-      print "%i\t\t%s"%(dset[0], dset[1])
-  # prompt
-  while True:
-    try:
-      ans = int(raw_input("Dataset id [None]?"))
-    except:
-      sample.source_dataset_id = None
-      return
-    check = store.find(Dataset,Dataset.dataset_id==ans)
-    if check.is_empty(): continue
-    else:
-      sample.source_dataset_id = ans
-      return
+from contextlib import contextmanager
+@contextmanager
+def confirm_transaction(db, prompt):
+    with db.manual_commit():
+        db.begin()
+        try:
+            yield
+        except Exception as ex:
+            db.rollback()
+            raise ex
+        else:
+            try:
+                if confirm(prompt=prompt, resp=True):
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as ex:
+                db.rollback()
+                raise ex
 
+@contextmanager
+def maybe_dryrun(db, dryRun=False, dryMessage=None):
+    with db.manual_commit():
+        db.begin()
+        try:
+            yield
+        except Exception as ex:
+            db.rollback()
+            raise ex
+        else:
+            try:
+                if not dryRun:
+                    db.commit()
+                else:
+                    if dryMessage:
+                        print(dryMessage)
+                    db.rollback()
+            except Exception as ex:
+                db.rollback()
+                raise ex

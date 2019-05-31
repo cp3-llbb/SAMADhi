@@ -1,715 +1,417 @@
 #!/usr/bin/env python
-
-# Script to do basic checks to the database and output statistics on usage and issues
+""" Script to do basic checks to the database and output statistics on usage and issues """
 
 import os,errno,json
 import re
 import ROOT
 ROOT.gROOT.SetBatch()
-from optparse import OptionParser, OptionGroup
-from datetime import date
-from collections import defaultdict
-from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, DbStore
-from cp3_llbb.SAMADhi.SAMADhi import File as SFile
-from storm.info import get_cls_info
+import argparse
 from datetime import datetime
+from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, SAMADhiDB
+from cp3_llbb.SAMADhi.SAMADhi import File as SFile
 from collections import defaultdict
 from cp3_llbb.SAMADhi.das_import import query_das
+from playhouse.shortcuts import model_to_dict
 
-class MyOptionParser:
-    """
-    Client option parser
-    """
-    def __init__(self):
-        usage  = "Usage: %prog [options]\n"
-        self.parser = OptionParser(usage=usage)
-        self.parser.add_option("-p","--path", action="store", type="string",
-                               dest="path", default=datetime.now().strftime("%y%m%d-%H:%M:%S"),
-             help="Destination path")
-        self.parser.add_option("-b","--basedir", action="store", type="string",
-                               dest="basedir", default="",
-             help="Directory where the website will be installed")
-        self.parser.add_option("-f","--full", action="store_true",
-                               dest="DAScrosscheck", default=False,
-             help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
-        self.parser.add_option("-d","--dry", action="store_true",
-                               dest="dryRun", default=False,
-             help="Dry run: do no write to disk")
+from contextlib import contextmanager
 
-    def get_opt(self):
-        """
-        Returns parse list of options
-        """
-        opts, args = self.parser.parse_args()
-        if opts.path is not None:
-          opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(opts.path)))
-        if not opts.dryRun and os.path.exists(opts.path):
-           raise OSError(errno.EEXIST,"Existing directory",opts.path);
-        return opts
+@contextmanager
+def openRootFile(fileName, noOp=False, mode="update"):
+    if noOp:
+        yield
+    else:
+        rootfile = ROOT.TFile.Open(fileName, mode)
+        yield
+        rootfile.Write();
+        rootfile.Close();
 
-def main():
-    """Main function"""
-    # get the options
-    optmgr = MyOptionParser()
-    opts = optmgr.get_opt()
+def saveReportJSON(jReport, outFileName, outDir=".", symlinkDir=None):
+    outFullName = os.path(outDir, outFileName)
+    with open(outFullName, "w") as outFile:
+        json.dump(jReport, outfile, default=model_to_dict)
+    if symlinkDir:
+        force_symlink(outFullName, os.path.join(symlinkDir, outFileName))
+
+def main(args=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-p", "--path", type=(lambda p : os.path.abspath(os.path.expandvars(os.path.expanduser(p)))),
+        default=datetime.now().strftime("%y%m%d-%H:%M:%S"),
+        help="Destination path")
+    parser.add_argument("-b", "--basedir", 
+        help="Directory where the website will be installed")
+    parser.add_argument("-f", "--full", action="store_true", dest="DAScrosscheck",
+        help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
+    parser.add_argument("-d", "--dry", action="store_true", dest="dryRun",
+        help="Dry run: do no write to disk")
+    args = parser.parse_args(args=args)
+    if not args.dryRun:
+        if os.path.exists(args.path):
+            raise OSError(errno.EEXIST, "Existing directory", args.path);
+        else:
+            os.makedirs(args.path)
+
     # connect to the MySQL database using default credentials
-    dbstore = DbStore()
-    # prepare the output directory
-    if not os.path.exists(opts.path) and not opts.dryRun:
-      os.makedirs(opts.path)
-    # run each of the checks and collect data
+    with SAMADhiDB() as db, openRootFile(os.path.join(args.path, "analysisReport.root"), noOp=dryRun, mode="UPDATE"):
+        # run each of the checks and collect data
+        # collect general statistics
+        general = collectGeneralStats()
+        if not args.dryRun:
+            saveReportJSON(general, "stats.json", outDir=args.path, symlinkDir=os.path.join(args.basedir, "data"))
+        # check datasets
+        datasets = {
+            "DatabaseInconsistencies" : (checkDatasets() if args.DAScrosscheck else copyInconsistencies(args.basedir)),
+            "Orphans" : findOrphanDatasets(),
+            "IncompleteData" : checkDatasetsIntegrity()
+            "DatasetsStatistics" : analyzeDatasetsStatistics(writeRoot=(not args.dryRun))
+            }
+        if not args.dryRun:
+            saveReportJSON(datasets, "DatasetsAnalysisReport.json", outDir=args.path, symlinkDir=os.path.join(args.basedir, "data"))
+        # check samples
+        samples = {
+            "MissingDirSamples" : checkSamplePath()
+            "DatabaseInconsistencies" : checkSampleConsistency()
+            "SampleStatistics" : analyzeSampleStatistics(writeRoot=(not args.dryRun))
+            }
+        if not args.dryRun:
+            saveReportJSON(samples, "SamplesAnalysisReport.json", outDir=args.path, symlinkDir=os.path.join(args.basedir, "data"))
+        # now, check results
+        results = {
+            "MissingDirSamples" : checkResultPath()
+            "DatabaseInconsistencies" : checkResultConsistency()
+            "SelectedResults" : selectResults(os.path.join(args.basedir, "data"))
+            "ResultsStatistics" : analyzeResultsStatistics(writeRoot=(not args.dryRun))
+            }
+        if not args.dryRun:
+            saveReportJSON(results, "ResultsAnalysisReport.json", outdir=args.path, symlinkDir=os.path.join(args.basedir, "data"))
+        # finally, some stats about Analysis objects
+        analyses = {
+            "AnalysisStatistics" : analyzeAnalysisStatistics(writeRoot=(not args.dryRun))
+            }
+        if not args.dryRun
+            saveReportJSON(analyses, "AnalysisAnalysisReport.json", outdir=args.path, symlinkDir=os.path.join(args.basedir, "data"))
 
-    # collect general statistics
-    outputDict = collectGeneralStats(dbstore,opts)
-    if not opts.dryRun:
-      with open(opts.path+'/stats.json', 'w') as outfile:
-        json.dump(outputDict, outfile, default=encode_storm_object)
-	force_symlink(opts.path+'/stats.json',opts.basedir+'/data/stats.json')
- 
-    # check datasets
-    outputDict = {}
-    outputDict["DatabaseInconsistencies"] = checkDatasets(dbstore,opts) if opts.DAScrosscheck else copyInconsistencies(opts.basedir)
-    dbstore = DbStore() # reconnect, since the checkDatasets may take very long...
-    outputDict["Orphans"] = findOrphanDatasets(dbstore,opts)
-    outputDict["IncompleteData"] = checkDatasetsIntegrity(dbstore,opts)
-    outputDict["DatasetsStatistics"] = analyzeDatasetsStatistics(dbstore,opts)
-    if not opts.dryRun:
-      with open(opts.path+'/DatasetsAnalysisReport.json', 'w') as outfile:
-        json.dump(outputDict, outfile, default=encode_storm_object)
-	force_symlink(opts.path+'/DatasetsAnalysisReport.json',opts.basedir+'/data/DatasetsAnalysisReport.json')
-
-    # check samples
-    outputDict = {}
-    outputDict["MissingDirSamples"] = checkSamplePath(dbstore,opts)
-    outputDict["DatabaseInconsistencies"] = checkSampleConsistency(dbstore,opts)
-    outputDict["SampleStatistics"] = analyzeSampleStatistics(dbstore,opts)
-    if not opts.dryRun:
-      with open(opts.path+'/SamplesAnalysisReport.json', 'w') as outfile:
-        json.dump(outputDict, outfile, default=encode_storm_object)
-	force_symlink(opts.path+'/SamplesAnalysisReport.json',opts.basedir+'/data/SamplesAnalysisReport.json')
-
-    # now, check results
-    outputDict = {}
-    outputDict["MissingDirSamples"] = checkResultPath(dbstore,opts)
-    outputDict["DatabaseInconsistencies"] = checkResultConsistency(dbstore,opts)
-    outputDict["SelectedResults"] = selectResults(dbstore,opts)
-    outputDict["ResultsStatistics"] = analyzeResultsStatistics(dbstore,opts)
-    if not opts.dryRun:
-      with open(opts.path+'/ResultsAnalysisReport.json', 'w') as outfile:
-        json.dump(outputDict, outfile, default=encode_storm_object)
-	force_symlink(opts.path+'/ResultsAnalysisReport.json',opts.basedir+'/data/ResultsAnalysisReport.json')
-
-    # finally, some stats about Analysis objects
-    outputDict = {}
-    outputDict["AnalysisStatistics"] = analyzeAnalysisStatistics(dbstore,opts)
-    if not opts.dryRun:
-      with open(opts.path+'/AnalysisAnalysisReport.json', 'w') as outfile:
-        json.dump(outputDict, outfile, default=encode_storm_object)
-        force_symlink(opts.path+'/AnalysisAnalysisReport.json',opts.basedir+'/data/AnalysisAnalysisReport.json')
-
-def collectGeneralStats(dbstore,opts):
+def collectGeneralStats():
     # get number of datasets, samples, results, analyses
-    result = {}
-    results = dbstore.find(Result)
-    samples = dbstore.find(Sample)
-    datasets = dbstore.find(Dataset)
-    analyses = dbstore.find(Analysis)
-    result["nDatasets"] = datasets.count()
-    result["nSamples"] = samples.count()
-    result["nResults"] = results.count()
-    result["nAnalyses"] = analyses.count()
-    print "\nGeneral statistics:"
-    print '======================'
-    print datasets.count(), " datasets"
-    print samples.count(), " samples"
-    print results.count(), " results"
+    result = {
+        "nDatasets" : Dataset.select().count(),
+        "nSamples"  : Sample.select().count(),
+        "nResults"  : Result.select().count(),
+        "nAnalysis" : Analysis.select().count()
+        }
+    print("\nGeneral statistics:")
+    print("======================")
+    for kt,num in result.items():
+        print("{0:d} {1}".format(num, kt[1:].lower()))
     return result
 
-def checkDatasets(dbstore,opts):
-    datasets = dbstore.find(Dataset)
-    print "\nDatasets inconsistent with DAS:"
-    print '=================================='
+def checkDatasets():
+    print("\nDatasets inconsistent with DAS:")
+    print("==================================")
     result = []
-    for dataset in datasets:
-      # query DAS to get the same dataset, by name
-      metadata = {}
-      try:
-        metadata = query_das(dataset.name)
-      except:
-        result.append([dataset,"Inconsistent with DAS"])
-        print "%s (imported on %s) -- Error getting dataset in DAS"%(str(dataset.name),str(dataset.creation_time))
-        continue
-        
-      # perform some checks: 
-      try:
-        # release name either matches or is unknown in DAS
-        test1 = str(metadata[u'release'])=="unknown" or dataset.cmssw_release == str(metadata[u'release'])
-        # datatype matches
-        test2 = dataset.datatype == metadata[u'datatype']
-        # nevents matches
-        test3 = dataset.nevents == metadata[u'nevents']
-        # size matches
-        test4 = dataset.dsize == metadata[u'file_size']
-      except:
-         result.append([dataset,"Inconsistent with DAS"])
-         print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
-      else:
-         if not(test1 and test2 and test3 and test4):
-             result.append([dataset,"Inconsistent with DAS"])
-             print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
+    for dataset in Dataset.select():
+        # query DAS to get the same dataset, by name
+        try:
+            metadata = query_das(dataset.name)
+        except:
+            result.append([ dataset, "Inconsistent with DAS" ])
+            print("{0.name} (imported on {0.creation_time!s}) -- Error getting dataset in DAS".format(dataset))
+            continue
+          
+        # perform some checks: 
+        try:
+            # release name either matches or is unknown in DAS
+            test1 = metadata['release'] == "unknown" or dataset.cmssw_release == metadata['release']
+            # datatype matches
+            test2 = dataset.datatype == metadata['datatype']
+            # nevents matches
+            test3 = dataset.nevents == metadata['nevents']
+            # size matches
+            test4 = dataset.dsize == metadata['file_size']
+        except:
+            result.append([ dataset, "Inconsistent with DAS" ])
+            print("{0.name} (imported on {0.creation_time!s})".format(dataset))
+        else:
+            if not ( test1 and test2 and test3 and test4 ):
+                result.append([ dataset, "Inconsistent with DAS" ])
+                print("{0.name} (imported on {0.creation_time!s})".format(dataset))
     return result
 
-def findOrphanDatasets(dbstore,opts):
-    datasets = dbstore.find(Dataset)
-    print "\nOrphan Datasets:"
-    print '==================='
+def findOrphanDatasets():
+    print("\nOrphan Datasets:")
+    print("===================")
     result = []
-    for dataset in datasets:
-        if dataset.samples.count()==0:
+    for dataset in Dataset.select():
+        if dataset.samples.count() == 0:
             result.append(dataset)
-            print "%s (imported on %s)"%(str(dataset.name),str(dataset.creation_time))
-    if len(result)==0:
-       print "None"
+            print("{0.name} (imported on {0.creation_time!s})".format(dataset))
+    if len(result) == 0:
+       print("None")
     return result
 
-def checkDatasetsIntegrity(dbstore,opts):
-    datasets = dbstore.find(Dataset)
-    print "\nDatasets integrity issues:"
-    print '==========================='
+def checkDatasetsIntegrity():
+    print("\nDatasets integrity issues:")
+    print("===========================")
     result = []
-    for dataset in datasets:
+    for dataset in Dataset.select():
         if dataset.cmssw_release is None:
-            result.append([dataset,"missing CMSSW release"])
-            print "%s (imported on %s): missing CMSSW release"%(str(dataset.name),str(dataset.creation_time))
+            result.append([ dataset, "missing CMSSW release" ])
+            print("{0.name} (imported on {0.creation_time!s}): missing CMSSW release".format(dataset))
         elif dataset.energy is None:
             result.append([dataset,"missing Energy"])
-            print "%s (imported on %s): missing Energy"%(str(dataset.name),str(dataset.creation_time))
+            print("{0.name} (imported on {0.creation_time!s}): missing Energy".format(dataset))
         elif dataset.globaltag is None:
             result.append([dataset,"missing Globaltag"])
-            print "%s (imported on %s): missing Globaltag"%(str(dataset.name),str(dataset.creation_time))
-    if len(result)==0:
-       print "None"
+            print("{0.name} (imported on {0.creation_time!s}): missing Globaltag".format(dataset))
+    if len(result) == 0:
+       print("None")
     return result
-    
 
-def analyzeDatasetsStatistics(dbstore,opts):
-    # ROOT output
-    if not opts.dryRun:
-      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
+def makePie(uName, data, title=None, save=False):
+    pie = ROOT.TPie("{0}Pie".format(uName), title if title is not None else uName, len(data))
+    for idx, (val, freq) in enumerate(data.items()):
+        pie.SetEntryVal(idx, freq)
+        pie.SetEntryLabel(idx, val)
+    pie.SetTextAngle(0);
+    pie.SetRadius(0.3);
+    pie.SetTextColor(1);
+    pie.SetTextFont(62);
+    pie.SetTextSize(0.03);
+    canvas = ROOT.TCanvas(uName, "", 2)
+    pie.Draw("r")
+    if save:
+        ROOT.gPad.Write()
+
+def getFreqs(model, attName, addNoneTo=None):
+    from peewee import fn
+    freqs = dict((getattr(val, attName), val.count) for val in model.select(getattr(model, attName), fn.Count(model.id).alias("count")).group_by(getattr(model, attName)))
+    if addNoneTo is not None and None in freqs:
+        freqs[addNoneTo] = freqs.get(addNoneTo, 0)+freqs[None]
+        del freqs[None]
+    return freqs
+
+def th1ToChart(histo):
+    return [ [ histo.GetBinCenter(ib), histo.GetBinContent(ib) ] for ib in range(1, histo.GetNbinsX()+1) ]
+
+def toTH1I(name, data, N, xMin, xMax, title=None):
+    if title is None:
+        title = name
+    h = ROOT.TH1I(name, title, N, xMin, xMax)
+    for x in data:
+        h.Fill(x)
+    return h
+
+def toGraph(x, y=None):
+    if y is None:
+        y = np.array(range(len(x))+1)
+    else:
+        assert len(x) == len(y)
+    gr = TGraph(len(x))
+    for i,(x,y) in enumerate(zip(x,y)):
+        gr.SetPoint(i, x, y)
+    return gr
+
+def analyzeDatasetsStatistics(writeRoot=False):
     stats = {}
-    # Releases used
-    output =  dbstore.execute("select dataset.cmssw_release,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY cmssw_release")
-    stats["cmssw_release"] = output.get_all()
-    if None in stats["cmssw_release"]: 
-        stats["cmssw_release"]["Unknown"] = stats["cmssw_release"][None] + stats["cmssw_release"].get("Unknown",0)
-        del stats["cmssw_release"][None]
-    releasePie = ROOT.TPie("datasetReleasePie","Datasets release",len(stats["cmssw_release"]))
-    for index,entry in enumerate(stats["cmssw_release"]):
-      releasePie.SetEntryVal(index,entry[1])
-      releasePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    releasePie.SetTextAngle(0);
-    releasePie.SetRadius(0.3);
-    releasePie.SetTextColor(1);
-    releasePie.SetTextFont(62);
-    releasePie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("datasetRelease","",2)
-    releasePie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # GlobalTag used
-    output =  dbstore.execute("select dataset.globaltag,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY globaltag")
-    stats["globaltag"] = output.get_all()
-    if None in stats["globaltag"]: 
-        stats["globaltag"]["Unknown"] = stats["globaltag"][None] + stats["globaltag"].get("Unknown",0)
-        del stats["globaltag"][None]
-    globaltagPie = ROOT.TPie("datasetGTPie","Datasets globaltag",len(stats["globaltag"]))
-    for index,entry in enumerate(stats["globaltag"]):
-      globaltagPie.SetEntryVal(index,entry[1])
-      globaltagPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    globaltagPie.SetTextAngle(0);
-    globaltagPie.SetRadius(0.3);
-    globaltagPie.SetTextColor(1);
-    globaltagPie.SetTextFont(62);
-    globaltagPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("datasetGT","",2)
-    globaltagPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # Datatype
-    output =  dbstore.execute("select dataset.datatype,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY datatype")
-    stats["datatype"] = output.get_all()
-    if None in stats["datatype"]: 
-        stats["datatype"]["Unknown"] = stats["datatype"][None] + stats["datatype"].get("Unknown",0)
-        del stats["datatype"][None]
-    datatypePie = ROOT.TPie("datasetTypePie","Datasets datatype",len(stats["datatype"]))
-    for index,entry in enumerate(stats["datatype"]):
-      datatypePie.SetEntryVal(index,entry[1])
-      datatypePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    datatypePie.SetTextAngle(0);
-    datatypePie.SetRadius(0.3);
-    datatypePie.SetTextColor(1);
-    datatypePie.SetTextFont(62);
-    datatypePie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("datasetType","",2)
-    datatypePie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # Energy
-    output =  dbstore.execute("select dataset.energy,COUNT(dataset.dataset_id) as numOfDataset FROM dataset GROUP BY energy")
-    stats["energy"] = output.get_all()
-    energyPie = ROOT.TPie("datasetEnergyPie","Datasets energy",len(stats["energy"]))
-    for index,entry in enumerate(stats["energy"]):
-      energyPie.SetEntryVal(index,entry[1])
-      energyPie.SetEntryLabel(index,"None" if entry[0] is None else str(entry[0]))
-    energyPie.SetTextAngle(0);
-    energyPie.SetRadius(0.3);
-    energyPie.SetTextColor(1);
-    energyPie.SetTextFont(62);
-    energyPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("datasetEnergy","",2)
-    energyPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # get all datasets to loop
-    datasets = dbstore.find(Dataset)
-    datasets.order_by(Dataset.creation_time)
-    # time evolution of # datasets (still in db)
-    datasets_time = [[0,0]]
-    # various stats (histograms)
-    datasets_nsamples = ROOT.TH1I("dataseets_nsamples","datasets_nsamples",10,0,10)
-    datasets_nevents  = ROOT.TH1I("dataseets_nevents", "datasets_nevents" ,100,0,-100)
-    datasets_dsize    = ROOT.TH1I("dataseets_dsize",   "datasets_dsize"   ,100,0,-100)
-    # let's go... loop
-    for dataset in datasets:
-        # for Highcharts the time format is #seconds since epoch
-        time = int(dataset.creation_time.strftime("%s"))*1000
-        datasets_time.append([time,datasets_time[-1][1]+1])
-        datasets_nsamples.Fill(dataset.samples.count())
-        datasets_nevents.Fill(dataset.nevents)
-        datasets_dsize.Fill(dataset.dsize)
-    # drop this: just to initialize the loop
-    datasets_time.pop(0)
-    # output
-    stats["datasetsTimeprof"] = datasets_time
-    datasetsTimeprof_graph = ROOT.TGraph(len(datasets_time))
-    for i,s in enumerate(datasets_time):
-        datasetsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
-    if not opts.dryRun:
-        datasetsTimeprof_graph.Write("datasetsTimeprof_graph")
-    data = []
-    for bin in range(1,datasets_nsamples.GetNbinsX()+1):
-        data.append([datasets_nsamples.GetBinCenter(bin),datasets_nsamples.GetBinContent(bin)])
-    stats["datasetsNsamples"] = data
-    data = []
-    for bin in range(1,datasets_nevents.GetNbinsX()+1):
-        data.append([datasets_nevents.GetBinCenter(bin),datasets_nevents.GetBinContent(bin)])
-    stats["datasetsNevents"] = data
-    data = []
-    for bin in range(1,datasets_dsize.GetNbinsX()+1):
-        data.append([datasets_dsize.GetBinCenter(bin),datasets_dsize.GetBinContent(bin)])
-    stats["datasetsDsize"] = data
-    # some printout
-    print "\nDatasets Statistics extracted."
-    print '================================='
-    # ROOT output
-    if not opts.dryRun:
-      rootfile.Write();
-      rootfile.Close();
-    # JSON output
+    for prop in ("cmssw_release", "globaltag", "datatype", "energy"):
+        nDataset_by_prop = getFreqs(Dataset, prop, addNoneTo="Unknown")
+        stats[prop] = [ [k,v] for k,v in nDataset_by_prop.items() ]
+        makePie("dataset{0}".format(prop.capitalize()), nDataset_by_prop, title="Datasets {0}".format(prop), save=(not dryRun))
+
+    dset_time, dset_nsamples, dset_nevents, dset_dsize = zip(*(
+        (int(dset.creation_time.strftime("%s"))*1000, dset.samples.count(), dset.nevents, dset.dsize)
+        for dset in Dataset.select(Dataset.creation_time, Dataset.samples, Dataset.nevents, Dataset.dsize).order_by(Dataset.creation_time)
+        ))
+    stats["datasetsNsamples"] = th1ToChart(toTH1I("dataseets_nsamples", dset_nsamples, 10, 0, 10))
+    stats["datasetsNevents"] = th1ToChart(toTH1I("dataseets_nevents", dset_nevents, 100, 0, -100))
+    stats["datasetsDsize"] = th1ToChart(toTH1I("dataseets_dsize", dset_dsize, 100, 0, -100))
+    stats["datasetsTimeprof"] = [ [tm, i+1] for i, tm in enumerate(dset_time) ]
+    if writeRoot:
+        toGraph(np.array(dset_time)/1000.).Write("datasetsTimeprof_graph")
+
+    print("\nDatasets Statistics extracted.")
+    print('=================================')
+
     return stats
 
-
-def checkResultPath(dbstore,opts):
+def checkResultPath():
     # get all samples
-    result = dbstore.find(Result)
-    print "\nResults with missing path:"
-    print '==========================='
-    array = []
-    for res in result:
-      # check that the path exists, and keep track of the sample if not the case.
-      if not os.path.exists(res.path):
-        print "Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
-        print " missing path: %s" %res.path
-        array.append(res)
-    if len(array)==0: print "None"
-    return array
-
+    print("\nResults with missing path:")
+    print("===========================")
+    for res in Result.select():
+        # check that the path exists, and keep track of the sample if not the case.
+        if not os.path.exists(res.path):
+            print("Result #{0.result_id} (created on {0.creation_time} by {0.author}):".format(res))
+            print(" missing path: {0}".format(res.path))
+            result.append(res)
+    if len(result) == 0:
+        print("None")
+    return result
     
-def checkSamplePath(dbstore,opts):
-    # get all samples
-    result = dbstore.find(Sample)
-    print "\nSamples with missing path:"
-    print '==========================='
-    array = []
-    for sample in result:
-      # check that the path exists, and keep track of the sample if not the case.
-      vpath = getSamplePath(sample,dbstore)
-      for path in vpath:
-        if not os.path.exists(path):
-          print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
-          print " missing path: %s" %path
-          print vpath
-          array.append(sample)
-          break
-    if len(array)==0: print "None"
-    return array
+def checkSamplePath():
+    print("\nSamples with missing path:")
+    print("===========================")
+    result = []
+    for sample in Sample.select():
+        # check that the path exists, and keep track of the sample if not the case.
+        vpath = getSamplePath(sample)
+        for path in vpath:
+            if not os.path.exists(path):
+                print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
+                print " missing path: %s" %path
+                print vpath
+                result.append(sample)
+                break
+    if len(result) == 0:
+        print("None")
+    return result
 
-def getSamplePath(sample,dbstore):
-    vpath=[]
+def getSamplePath(sample):
     # the path should be stored in sample.path
     # if it is empty, look for files in that path
-    if sample.path=="":
-      regex = r".*SFN=(.*)"
-      files = dbstore.find(SFile, SFile.sample_id==sample.sample_id)
-      for file in files:
-        m = re.search(regex,str(file.pfn))
-        if m: vpath.append(os.path.dirname(m.group(1)))
-      vpath=list(set(vpath))
-      return vpath
+    if sample.path == "":
+        vpath = set()
+        regex = r".*SFN=(.*)"
+        for f in SFile.select().where(SFile.sampld_id == sample.sample_id):
+            m = re.search(regex, f.pfn)
+            if m:
+                vpath.add(os.path.dirname(m.group(1)))
+        return list(vpath)
     else:
-      return [sample.path]
+        return [ sample.path ]
 
-def selectResults(dbstore,opts):
+def selectResults(symlinkDir):
     # look for result records pointing to a ROOT file
     # eventually further filter 
-    results = dbstore.find(Result)
-    print "\nSelected results:"
-    print '==========================='
-    array = []
-    for result in results:
-        path = result.path
+    print("\nSelected results:")
+    print("===========================")
+    result = []
+    for res in Result.select():
+        path = res.path
         if os.path.exists(path) and os.path.isdir(path):
-            files = [ f for f in os.listdir(path) if os.path.isfile(path+"/"+f) ]
-            if len(files)==1:
-                path = path+"/"+f
-		result.path = path
+            files = [ f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) ]
+            if len(files) == 1:
+                path = os.path.join(path, f)
+		res.path = path
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
-	    symlink = "%s/data/result_%s.root"%(opts.basedir,str(result.result_id))
-	    relpath = "../data/result_%s.root"%(str(result.result_id))
-	    force_symlink(path,symlink)
-	    array.append([result,relpath])
-            print "Result #%s (created on %s by %s): "%(str(result.result_id),str(result.creation_time),str(result.author)),
-            print symlink
+	    symlink = os.path.join(symlinkDir, "res_{0}.root".format(res.res_id))
+	    relpath = "../data/res_{0}.root"%(res.res_id)
+	    force_symlink(path, symlink)
+	    result.append([ res, relpath ])
+            print("res #{0.res_id} (created on {0.creation_time} by {0.author}): ".format(res))
+            print(symlink)
+    if len(result) == 0:
+        print("None")
+    return result
 
-    if len(array)==0: print "None"
-    return array
-
-def checkResultConsistency(dbstore,opts):
-    # get all samples
-    result = dbstore.find(Result)
-    print "\nResults with missing source:"
-    print '============================='
-    array = []
-    for res in result:
+def checkResultConsistency():
+    print("\nResults with missing source:")
+    print("=============================")
+    result = []
+    for res in Result.select():
       # check that the source sample exists in the database.
       # normaly, this should be protected already at the level of sql rules
       for sample in res.samples:
-        if sample is None:
-          print "Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
-          print "inconsistent source sample"
-          array.append([res,"inconsistent source sample"])
-          print res
-          break
-    if len(array)==0: print "None"
-    return array
-
-
-def checkSampleConsistency(dbstore,opts):
-    # get all samples
-    result = dbstore.find(Sample)
-    print "\nSamples with missing source:"
-    print '============================='
-    array = []
-    for sample in result:
-      # check that either the source dataset or the source sample exists in the database.
-      # normaly, this should be protected already at the level of sql rules
-      sourceDataset = sample.source_dataset
-      sourceSample = sample.source_sample
-      if (sample.source_dataset_id is not None) and (sourceDataset is None):
-        print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
-        print "inconsistent source dataset"
-        array.append([sample,"inconsistent source dataset"])
-        print sample
-      if (sample.source_sample_id is not None) and (sourceSample is None):
-        print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
-        print "inconsistent source sample"
-        array.append([sample,"inconsistent source sample"])
-    if len(array)==0: print "None"
-    return array
-
-def analyzeAnalysisStatistics(dbstore,opts):
-    stats = {}
-    # ROOT output
-    if not opts.dryRun:
-      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
-    # contact
-    output =  dbstore.execute("select analysis.contact,COUNT(analysis.analysis_id) as numOfAnalysis FROM analysis GROUP BY contact")
-    stats["analysisContacts"] = output.get_all()
-    if None in stats["analysisContacts"]: 
-        stats["analysisContacts"]["Unknown"] = stats["analysisContacts"][None] + stats["analysisContacts"].get("Unknown",0)
-        del stats["analysisContacts"][None]
-    contactPie = ROOT.TPie("AnalysisContactPie","Analysis contacts",len(stats["analysisContacts"]))
-    for index,entry in enumerate(stats["analysisContacts"]):
-      contactPie.SetEntryVal(index,entry[1])
-      contactPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    contactPie.SetTextAngle(0);
-    contactPie.SetRadius(0.3);
-    contactPie.SetTextColor(1);
-    contactPie.SetTextFont(62);
-    contactPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("analysisContact","",2)
-    contactPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # analysis size in terms of results (pie)
-    output =  dbstore.execute("select analysis.description,COUNT(result.result_id) as numOfResults  FROM result INNER JOIN analysis ON result.analysis_id=analysis.analysis_id GROUP BY result.analysis_id;")
-    stats["analysisResults"] = output.get_all()
-    if None in stats["analysisResults"]: 
-        stats["analysisResults"]["Unknown"] = stats["analysisResults"][None] + stats["analysisResults"].get("Unknown",0)
-        del stats["analysisResults"][None]
-    resultPie = ROOT.TPie("AnalysisResultsPie","Analysis results",len(stats["analysisResults"]))
-    for index,entry in enumerate(stats["analysisResults"]):
-      resultPie.SetEntryVal(index,entry[1])
-      resultPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    resultPie.SetTextAngle(0);
-    resultPie.SetRadius(0.3);
-    resultPie.SetTextColor(1);
-    resultPie.SetTextFont(62);
-    resultPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("analysisResults","",2)
-    resultPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # stats to collect: group distribution (from CADI line) (pie)
-    analyses = dbstore.find(Analysis)
-    regex = r".*([A-Z]{3})-\d{2}-\d{3}"
-    stats["physicsGroup"] = defaultdict(int)
-    for analysis in analyses:
-        m = re.search(regex,str(analysis.cadiline))
-        physicsGroup = "NONE"
-        if m: 
-            physicsGroup = m.group(1)
-        stats["physicsGroup"][physicsGroup] += 1
-    stats["physicsGroup"] = dict(stats["physicsGroup"])
-    if None in stats["physicsGroup"]: 
-        stats["physicsGroup"]["Unknown"] = stats["physicsGroup"][None] + stats["physicsGroup"].get("Unknown",0)
-        del stats["physicsGroup"][None]
-
-    # the end of the loop, we have all what we need to fill a pie chart.
-    physicsGroupPie = ROOT.TPie("physicsGroupPie","Physics groups",len(stats["physicsGroup"]))
-    for index,(group,count) in enumerate(stats["physicsGroup"].iteritems()):
-      physicsGroupPie.SetEntryVal(index,count)
-      physicsGroupPie.SetEntryLabel(index,group)
-    physicsGroupPie.SetTextAngle(0);
-    physicsGroupPie.SetRadius(0.3);
-    physicsGroupPie.SetTextColor(1);
-    physicsGroupPie.SetTextFont(62);
-    physicsGroupPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("physicsGroup","",2)
-    physicsGroupPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # some printout
-    print "\nAnalysis Statistics extracted."
-    print '================================'
-    # ROOT output
-    if not opts.dryRun:
-      rootfile.Write();
-      rootfile.Close();
-    # JSON output
-    stats["physicsGroup"] = [ [a,b] for (a,b) in stats["physicsGroup"].items()]
-    return stats
-
-def analyzeResultsStatistics(dbstore,opts):
-    stats = {}
-    # ROOT output
-    if not opts.dryRun:
-      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
-    #authors statistics
-    output =  dbstore.execute("select result.author,COUNT(result.result_id) as numOfResults FROM result GROUP BY author")
-    stats["resultsAuthors"] = output.get_all()
-    if None in stats["resultsAuthors"]: 
-        stats["resultsAuthors"]["Unknown"] = stats["resultsAuthors"][None] + stats["resultsAuthors"].get("Unknown",0)
-        del stats["resultsAuthors"][None]
-    authorPie = ROOT.TPie("resultsAuthorsPie","Results authors",len(stats["resultsAuthors"]))
-    for index,entry in enumerate(stats["resultsAuthors"]):
-      authorPie.SetEntryVal(index,entry[1])
-      authorPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    authorPie.SetTextAngle(0);
-    authorPie.SetRadius(0.3);
-    authorPie.SetTextColor(1);
-    authorPie.SetTextFont(62);
-    authorPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("resultsAuthor","",2)
-    authorPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    result_nsamples = ROOT.TH1I("result_nsamples","result_nsamples",20,0,20)
-    # get all samples to loop
-    results = dbstore.find(Result)
-    results.order_by(Result.creation_time)
-    # time evolution of # results (still in db)
-    results_time = [[0,0]]
-    # let's go... loop
-    for result in results:
-        # for Highcharts the time format is #seconds since epoch
-        time = int(result.creation_time.strftime("%s"))*1000
-        results_time.append([time,results_time[-1][1]+1])
-        result_nsamples.Fill(result.samples.count())
-    # drop this: just to initialize the loop
-    results_time.pop(0)
-    # output
-    stats["resultsTimeprof"] = results_time
-    resultsTimeprof_graph = ROOT.TGraph(len(results_time))
-    for i,s in enumerate(results_time):
-        resultsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
-    if not opts.dryRun:
-        resultsTimeprof_graph.Write("resultsTimeprof_graph")
-    data = []
-    for bin in range(1,result_nsamples.GetNbinsX()+1):
-        data.append([result_nsamples.GetBinCenter(bin),result_nsamples.GetBinContent(bin)])
-    stats["resultNsamples"] = data
-    # some printout
-    print "\nResults Statistics extracted."
-    print '================================'
-    # ROOT output
-    if not opts.dryRun:
-      rootfile.Write();
-      rootfile.Close();
-    # JSON output
-    return stats
-
-def analyzeSampleStatistics(dbstore,opts):
-    stats = {}
-    # ROOT output
-    if not opts.dryRun:
-      rootfile = ROOT.TFile(opts.path+"/analysisReport.root","update")
-    #authors statistics
-    output =  dbstore.execute("select sample.author,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY author")
-    stats["sampleAuthors"] = output.get_all()
-    if None in stats["sampleAuthors"]: 
-        stats["sampleAuthors"]["Unknown"] = stats["sampleAuthors"][None] + stats["sampleAuthors"].get("Unknown",0)
-        del stats["sampleAuthors"][None]
-    authorPie = ROOT.TPie("sampleAuthorsPie","Samples authors",len(stats["sampleAuthors"]))
-    for index,entry in enumerate(stats["sampleAuthors"]):
-      authorPie.SetEntryVal(index,entry[1])
-      authorPie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    authorPie.SetTextAngle(0);
-    authorPie.SetRadius(0.3);
-    authorPie.SetTextColor(1);
-    authorPie.SetTextFont(62);
-    authorPie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("sampleAuthor","",2)
-    authorPie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    #sample types statistics
-    output =  dbstore.execute("select sample.sampletype,COUNT(sample.sample_id) as numOfSamples FROM sample GROUP BY sampletype")
-    stats["sampleTypes"] = output.get_all()
-    if None in stats["sampleTypes"]: 
-        stats["sampleTypes"]["Unknown"] = stats["sampleTypes"][None] + stats["sampleTypes"].get("Unknown",0)
-        del stats["sampleTypes"][None]
-    typePie = ROOT.TPie("sampleTypesPie","Samples types",len(stats["sampleTypes"]))
-    for index,entry in enumerate(stats["sampleTypes"]):
-      typePie.SetEntryVal(index,entry[1])
-      typePie.SetEntryLabel(index,"None" if entry[0] is None else entry[0])
-    typePie.SetTextAngle(0);
-    typePie.SetRadius(0.3);
-    typePie.SetTextColor(1);
-    typePie.SetTextFont(62);
-    typePie.SetTextSize(0.03);
-    canvas = ROOT.TCanvas("sampleType","",2)
-    typePie.Draw("r")
-    if not opts.dryRun:
-      ROOT.gPad.Write()
-    # get all samples to loop
-    result = dbstore.find(Sample)
-    result.order_by(Sample.creation_time)
-    # events statistics
-    sample_nevents_processed = ROOT.TH1I("sample_nevents_processed","sample_nevents_processed",100,0,-100)
-    sample_nevents = ROOT.TH1I("sample_nevents","sample_nevents",100,0,-100)
-    # time evolution of statistics & # samples (still in db)
-    sample_nevents_processed_time = [[0,0]]
-    sample_nevents_time = [[0,0]] 
-    samples_time = [[0,0]]
-    # let's go... loop
-    for sample in result:
-        # for Highcharts the time format is #seconds since epoch
-        time = int(sample.creation_time.strftime("%s"))*1000
-        ne = 0 if sample.nevents is None else sample.nevents
-        np = 0 if sample.nevents_processed is None else sample.nevents_processed
-        sample_nevents_processed.Fill(np)
-        sample_nevents.Fill(ne)
-        sample_nevents_processed_time.append([time,sample_nevents_processed_time[-1][1]+np])
-        sample_nevents_time.append([time,sample_nevents_time[-1][1]+ne])
-        samples_time.append([time,samples_time[-1][1]+1])
-    # drop this: just to initialize the loop
-    sample_nevents_processed_time.pop(0)
-    sample_nevents_time.pop(0)
-    samples_time.pop(0)
-    # output
-    stats["sampleNeventsTimeprof"] = sample_nevents_time
-    stats["sampleNeventsProcessedTimeprof"] = sample_nevents_processed_time
-    stats["samplesTimeprof"] = samples_time
-    sampleNeventsTimeprof_graph = ROOT.TGraph(len(sample_nevents_time))
-    sampleNeventsProcessedTimeprof_graph = ROOT.TGraph(len(sample_nevents_processed_time))
-    samplesTimeprof_graph = ROOT.TGraph(len(samples_time))
-    for i,s in enumerate(sample_nevents_time):
-        sampleNeventsTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
-    for i,s in enumerate(sample_nevents_processed_time):
-        sampleNeventsProcessedTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
-    for i,s in enumerate(samples_time):
-        samplesTimeprof_graph.SetPoint(i,s[0]/1000,s[1])
-    if not opts.dryRun:
-        sampleNeventsTimeprof_graph.Write("sampleNeventsTimeprof_graph")
-        sampleNeventsProcessedTimeprof_graph.Write("sampleNeventsProcessedTimeprof_graph")
-        samplesTimeprof_graph.Write("samplesTimeprof_graph")
-    # unfortunately, TBufferJSON is not available in CMSSW (no libRHttp) -> no easy way to export to JSON
-    # the JSON format for highcharts data is [ [x1,y1], [x2,y2], ... ]
-    data = []
-    for bin in range(1,sample_nevents.GetNbinsX()+1):
-      data.append([sample_nevents.GetBinCenter(bin),sample_nevents.GetBinContent(bin)])
-    stats["sampleNevents"] = data
-    data = []
-    for bin in range(1,sample_nevents_processed.GetNbinsX()+1):
-      data.append([sample_nevents_processed.GetBinCenter(bin),sample_nevents_processed.GetBinContent(bin)])
-    stats["sampleNeventsProcessed"] = data
-    # some printout
-    print "\nSamples Statistics extracted."
-    print '================================'
-    # ROOT output
-    if not opts.dryRun:
-      rootfile.Write();
-      rootfile.Close();
-    # JSON output
-    return stats
-
-# function to serialize the storm objects,
-# from Jamu Kakar and Mario Zito at https://lists.ubuntu.com/archives/storm/2010-May/001286.html
-def encode_storm_object(object):
-    ''' Serializes to JSON a Storm object
-    
-    Use:
-        from storm.info import get_cls_info
-        import json
-        ...
-        storm_object = get_storm_object()
-        print json.dumps(storm_object, default=encode_storm_object)
-            
-    Warnings:
-        Serializes objects containing Int, Date and Unicode data types
-        other datatypes are not tested. MUST be improved
-    '''
-    if not hasattr(object, "__storm_table__"):
-        raise TypeError(repr(object) + " is not JSON serializable")
-    result = {}
-    cls_info = get_cls_info(object.__class__)
-    for name in cls_info.attributes.iterkeys():
-        value= getattr(object, name)
-        if (isinstance(value, date)): 
-            value= str(value)
-        result[name] = value
+          if sample is None:
+              print("Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
+              print "inconsistent source sample"
+              result.append([res,"inconsistent source sample"])
+              print res
+              break
+    if len(result) == 0:
+        print("None")
     return result
+
+def checkSampleConsistency():
+    print("\nSamples with missing source:")
+    print("=============================")
+    result = []
+    for sample in Sample.select():
+        # check that either the source dataset or the source sample exists in the database.
+        # normaly, this should be protected already at the level of sql rules
+        sourceDataset = sample.source_dataset
+        sourceSample = sample.source_sample
+        if sample.source_dataset_id is not None and sample.source_dataset is None:
+            print("Sample #{0.sample_id} (created on {0.creation_time} by {0.author}".format(sample))
+            print("inconsistent source dataset")
+            result.append([ sample, "inconsistent source dataset" ])
+            print(sample)
+        if sample.source_sample_id is not None and sample.source_sample is None:
+            print("Sample #{0.sample_id} (created on {0.creation_time} by {0.author}".format(sample))
+            print("inconsistent source sample")
+            result.append([ sample, "inconsistent source sample" ])
+    if len(array) == 0:
+        print("None")
+    return array
+
+def analyzeAnalysisStatistics(writeRoot=False):
+    stats = {}
+    nAnalyses_by_contact = getFreqs(Analysis, "contact", addNoneTo="Unknown")
+    stats["analysisContacts"] = [ [k,v] for k,v in nAnalyses_by_contact.items() ]
+    makePie("analysisContact", nAnalyses_by_contact, title"Analysis contacts", save=writeRoot)
+    nResults_by_analysis = dict((ana.description, len(ana.results)) for ana in Analysis.select(Analysis.description, Analysis.results) if len(ana.results) > 0)
+    stats["analysisResults"] = [ [k,v] for k,v in nResults_by_analysis.items() ]
+    makePie("analysisResults", nResults_by_analysis, title="Analysis results", save=writeRoot)
+
+    # stats to collect: group distribution (from CADI line) (pie)
+    cadiExpr = re.compile(r".*([A-Z]{3})-\d{2}-\d{3}")
+    nAnalysis_by_physicsgroup = defaultdict(int)
+    for analysis in Analysis.select():
+        m = cadiExpr.search(analysis.cadiline)
+        nAnalysis_by_physicsgroup[m.group(1) if m else "NONE"] += 1
+    stats["physicsGroup"] = [ [k,v] for k,v in nAnalysis_by_physicsgroup.items() ]
+    makePie("physicsGroup", nAnalyses_by_physicsgroup, title="Physics groups", save=writeRoot)
+
+    print("\nAnalysis Statistics extracted.")
+    print("================================")
+
+    return stats
+
+def analyzeResultsStatistics(writeRoot=False):
+    stats = {}
+    nResults_by_author = getFreqs(Result, "author", addNoneTo="Unknown")
+    stats["resultsAuthors"] = [ [k,v] for k,v in nResults_by_author.items() ]
+
+    res_time, res_nsamples = zip(*(
+        (int(res.creation_time.strftime("%s"))*1000, res.samples.count())
+        for res in Result.select(Result.creation_time, Result.samples).order_by(Result.creation_time)
+        ))
+    stats["resultNsamples"] = th1ToChart(toTH1I("result_nsamples", res_nsamples, 20, 0, 20))
+    if writeRoot:
+        toGraph(np.array(res_time)/1000.).Write("resultsTimeprof_graph")
+
+    print("\nResults Statistics extracted.")
+    print("================================")
+
+    return stats
+
+def analyzeSampleStatistics(writeRoot=False):
+    stats = {}
+    nSamples_by_author = getFreqs(Sample, "author", addNoneTo="Unknown")
+    stats["sampleAuthors"] = [ [k,v] for k,v in nSamples_by_author.items() ]
+    makePie("sampleAuthors", nSamples_by_author, title="Sample authors", save=writeRoot)
+    nSamples_by_type = getFreqs(Sample, "sampletype", addNoneTo="Unknown"])
+    stats["sampleTypes"] = [ [k,v] for k,v in nSamples_by_type.items() ]
+    makePie("sampleTypes", nSamples_by_type, title="Sample types", save=writeRoot)
+
+    samples_time, sample_nevents, sample_nevents_processed = zip(*(
+        (int(smp.creation_time.strftime("%s"))*1000, sample.nevents, sample.nevents_processed)
+        for smp in Sample.select(Sample.creation_time, Sample.nevents, Sample.nevents_processed).order_by(Sample.creation_time)
+        ))
+    statsp"sampleNevents"] = th1ToChart(toTH1I("sample_nevents", sample_nevents, 100, 0, -100))
+    statsp"sampleNeventsProcessed"] = th1ToChart(toTH1I("sample_nevents_processed", sample_nevents_processed, 100, 0, -100))
+    stats["sampleNeventsTimeprof"] = list(list(row) for row in zip(samples_time, np.cumsum(np.array(sample_nevents))))
+    stats["sampleNeventsProcessedTimeprof"] = list(list(row) for row in zip(samples_time, np.cumsum(np.array(sample_nevents_processed))))
+    stats["samplesTimeprof"] = samples_time
+    if writeRoot:
+        samples_time_s = np.array(samples_time)/1000.
+        toGraph(samples_time_s, np.cumsum(sample_nevents)).Write("sampleNeventsTimeprof_graph")
+        toGraph(samples_time_s, np.cumsum(sample_nevents_processed)).Write("sampleNeventsProcessedTimeprof_graph")
+        toGraph(samples_time_s).Write("samplesTimeprof_graph")
+
+    print("\nSamples Statistics extracted.")
+    print("================================")
+
+    return stats
 
 def force_symlink(file1, file2):
     try:
@@ -723,7 +425,7 @@ def copyInconsistencies(basedir):
     # try to read inconsistencies from previous job
     # the file must be there and must contain the relevant data
     try:
-        with open(basedir+'/data/DatasetsAnalysisReport.json') as jfile:
+        with open(os.path.join(basedir, "data", "DatasetsAnalysisReport.json")) as jfile:
             content = json.load(jfile)
             return content["DatabaseInconsistencies"]
     except IOError:
@@ -737,9 +439,5 @@ def copyInconsistencies(basedir):
         print("No DatabaseInconsistencies key in the previous json file ?!")
         return []
 
-#
-# main
-#
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

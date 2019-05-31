@@ -2,103 +2,52 @@
 
 # Script to add a sample to the database
 
-import os
-from optparse import OptionParser
-from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, Result, DbStore, Analysis
+import cp3_llbb.SAMADhi.SAMADhi as SAMADhi
+from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB
 
-class MyOptionParser: 
-    """
-    Client option parser
-    """
-    def __init__(self):
-        usage  = "Usage: %prog type [options]\n"
-        usage += "Where type is one of dataset, sample, result, analysis"
-        self.parser = OptionParser(usage=usage)
-        self.parser.add_option("-l","--long", action="store_true", 
-                               dest="longOutput", default=False,
-             help="detailed output")
-        self.parser.add_option("-n","--name", action="store", type="string",
-                               dest="name", default=None,
-             help="filter on name")
-        self.parser.add_option("-p","--path", action="store", type="string",
-                               dest="path", default=None,
-             help="filter on path")
-        self.parser.add_option("-i","--id", action="store", type="int",
-                               dest="objid", default=None,
-             help="filter on id")
+import os.path
+import argparse
 
-    def get_opt(self):
-        """
-        Returns parse list of options
-        """
-        opts, args = self.parser.parse_args()
-        if len(args) == 0:
-          self.parser.error("must specify the type of item to search for")
-        if args[0] not in ["dataset","sample","result","analysis"]:
-          self.parser.error("type must be one of dataset, sample, result, analysis")
-        cnt = 0
-        if opts.path is not None: 
-          cnt +=1
-          opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(opts.path)))
-        if opts.name is not None: cnt +=1
-        if opts.objid is not None: cnt +=1
-        if cnt>1:
-          self.parser.error("only one selection criteria may be applied")
-        if args[0]=="dataset" and opts.path is not None:
-          self.parser.error("cannot search dataset by path")
-        if args[0]=="result" and opts.name is not None:
-          self.parser.error("cannot search a result by name")
-        if args[0]=="analysis" and opts.path is not None:
-          self.parser.error("cannot search analysis by path")
-        opts.objtype = args[0]
-        return opts
+def replaceWildcards(arg):
+    return arg.replace("*", "%").replace("?", "_")
 
-def main():
-    """Main function"""
-    # get the options
-    optmgr = MyOptionParser()
-    opts = optmgr.get_opt()
-    # connect to the MySQL database using default credentials
-    dbstore = DbStore()
-    # build the query
-    if opts.objtype == "dataset":
-      objectClass = Dataset
-      objectId = Dataset.dataset_id
-    elif opts.objtype == "sample":
-      objectClass = Sample
-      objectId = Sample.sample_id
-    elif opts.objtype == "analysis":
-      objectClass = Analysis
-      objectId = Analysis.analysis_id
-    else:
-      objectClass = Result
-      objectId = Result.result_id
+def main(args=None):
+    parser = argparse.ArgumentParser(description="Search for datasets, samples, results or analyses in SAMADhi")
+    parser.add_argument("type", help="Object type to search for", choices=["dataset", "sample", "result", "analysis"])
+    parser.add_argument("-l", "--long", action="store_true", help="detailed output")
+    pquery = parser.add_mutually_exclusive_group(required=True)
+    pquery.add_argument("-n", "--name", help="filter on name")
+    pquery.add_argument("-p", "--path", help="filter on path", type=(lambda pth : os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))))
+    pquery.add_argument("-i", "--id", type=int, help="filter on id")
+    args = parser.parse_args(args=args)
+# more validation
+    if args.type in ("dataset", "analysis") and args.path:
+        parser.error("Cannot search {0} by path".format(args.type))
+    elif args.type == "result" and args.name:
+        parser.error("Cannot search results by name")
 
-    if opts.objid is not None:
-      result = dbstore.find(objectClass, objectId==opts.objid)
-    elif opts.path is not None:
-      result = dbstore.find(objectClass, objectClass.path.like(unicode(opts.path.replace('*', '%').replace('?', '_'))))
-    elif opts.name is not None:
-      result = dbstore.find(objectClass, objectClass.name.like(unicode(opts.name.replace('*', '%').replace('?', '_'))))
-    else: 
-      result = dbstore.find(objectClass)
+    objCls = getattr(SAMADhi, args.type.capitalize())
+    idAttrName = "{0}_id".format(args.type)
 
-    result = result.order_by(objectId)
-    # loop and print
-    if opts.longOutput:
-      for entry in result:
-        print entry
-        print "--------------------------------------------------------------------------------------"
-    else:
-      if opts.objtype != "result" and opts.objtype != "analysis":
-        data = result.values(objectId, objectClass.name)
-      else:
-        data = result.values(objectId, objectClass.description)
-      for dset in data:
-        print "%i\t%s"%(dset[0], dset[1])
+    with SAMADhiDB():
+        qry = objCls.select()
+        if args.id:
+            qry = qry.where(getattr(objCls, idAttrName) == args.id)
+        elif args.name:
+            qry = qry.where(objCls.name % replaceWildcards(args.name))
+        elif args.path:
+            qry = qry.where(objCls.path % replaceWildcards(args.path))
+        results = qry.order_by(getattr(objCls, idAttrName))
 
-#
-# main
-#
-if __name__ == '__main__':
+        if args.long:
+            for entry in results:
+                print(str(entry))
+                print(86*"-")
+        else:
+            fmtStr = "{{0.{0}}}\t{{0.{1}}}".format(idAttrName,
+                    ("name" if args.type not in ("result", "analysis") else "description"))
+            for res in results:
+                print(fmtStr.format(res))
+
+if __name__ == "__main__":
     main()

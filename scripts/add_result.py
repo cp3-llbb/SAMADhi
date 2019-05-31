@@ -1,99 +1,61 @@
 #!/usr/bin/env python
-
-# Script to add a sample to the database
-
-import os
-from pwd import getpwuid
+""" Add a result to the database """
+import os.path
 from datetime import datetime
-from optparse import OptionParser
-from cp3_llbb.SAMADhi.SAMADhi import Analysis, Sample, Result, DbStore
-from cp3_llbb.SAMADhi.userPrompt import confirm, prompt_samples, parse_samples
+import argparse
+from cp3_llbb.SAMADhi.SAMADhi import Sample, Result, SAMADhiDB
+from cp3_llbb.SAMADhi.userPrompt import confirm_transaction, prompt_samples
 
-class MyOptionParser: 
-    """
-    Client option parser
-    """
-    def __init__(self):
-        usage  = "Usage: %prog path [options]\n"
-        self.parser = OptionParser(usage=usage)
-        self.parser.add_option("-s", "--sample", action="store", type="string", 
-                               default=None, dest="inputSamples",
-             help="comma separated list of samples used as input to produce that result")
-        self.parser.add_option("-d", "--description", action="store", type="string", 
-                               default=None, dest="desc",
-             help="description of the result")
-        self.parser.add_option("-e", "--elog", action="store", type="string",
-                               default=None, dest="elog",
-             help="elog with more details")
-        self.parser.add_option("-A", "--analysis", action="store", type="int",
-                               default=None, dest="ana",
-             help="analysis whose result belong to")
-        self.parser.add_option("-a", "--author", action="store", type="string", 
-                               default=None, dest="author",
-             help="author of the result. If not specified, is taken from the path.")
-        self.parser.add_option("-t", "--time", action="store", type="string", 
-                               default=None, dest="time",
-             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
+def parsePath(pth):
+    import os.path
+    import argparse
+    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
+    if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
+        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
+    return pth
 
-    def get_opt(self):
-        """
-        Returns parse list of options
-        """
-        opts, args = self.parser.parse_args()
-        # check that the path exists
-        if len(args) < 1:
-          self.parser.error("path is mandatory")
-        opts.path = os.path.abspath(os.path.expandvars(os.path.expanduser(args[0])))
-        if not os.path.exists(opts.path) or not ( os.path.isdir(opts.path) or os.path.isfile(opts.path)) :
-          self.parser.error("%s is not an existing file or directory"%opts.path)
-        # set author
-        if opts.author is None:
-          opts.author = getpwuid(os.stat(opts.path).st_uid).pw_name
-        # set timestamp
-        if not opts.time is None:
-          if opts.time=="path":
-            opts.datetime = datetime.fromtimestamp(os.path.getctime(opts.path))
-          else:
-            opts.datetime = datetime.strptime(opts.time,'%Y-%m-%d %H:%M:%S')
-        else:
-          opts.datetime = datetime.now()
-        return opts
+def userFromPath(pth):
+    import os
+    from pwd import getpwuid
+    return getpwuid(os.stat(pth).st_uid).pw_name
 
-def main():
-    """Main function"""
-    # get the options
-    optmgr = MyOptionParser()
-    opts   = optmgr.get_opt()
-    # build the result from user input
-    result = Result(unicode(opts.path))
-    result.description = unicode(opts.desc)
-    result.author = unicode(opts.author)
-    result.creation_time = opts.datetime
-    result.elog = unicode(opts.elog)
-    result.analysis_id = opts.ana
-    # connect to the MySQL database using default credentials
-    dbstore = DbStore()
-    # unless the source is set, prompt the user and present a list to make a choice
-    if opts.inputSamples is None:
-      inputSamples = prompt_samples(dbstore)
+def main(args=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("path", type=parsePath)
+    parser.add_argument("-s", "--sample", dest="inputSamples", help="comma separated list of samples used as input to produce that result")
+    parser.add_argument("-d", "--description", help="description of the result")
+    parser.add_argument("-e", "--elog", help="elog with more details")
+    parser.add_argument("-A", "--analysis", type=int, help="analysis whose result belong to")
+    parser.add_argument("-a", "--author", help="author of the result. If not specified, is taken from the path")
+    parser.add_argument("-t", "--time", help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
+    args = parser.parse_args(args=args)
+
+    if args.author is None:
+        args.author = userFromPath(args.path)
+    if args.time == "path":
+        time = datetime.fromtimestamp(os.path.getctime(args.path))
+    elif args.time is not None:
+        time = datetime.strptime(args.time, '%Y-%m-%d %H:%M:%S')
     else:
-      inputSamples = parse_samples(opts.inputSamples)
-    # create and store the relations
-    samples = dbstore.find(Sample,Sample.sample_id.is_in(inputSamples))
-    if samples.is_empty():
-      dbstore.add(result)
-    else:
-      for sample in samples:
-        sample.results.add(result)
-    # flush (populates the analysis if needed)
-    dbstore.flush()
-    # print the resulting object and ask for confirmation
-    print result
-    if confirm(prompt="Insert into the database?", resp=True):
-      dbstore.commit()
+        time = datetime.now()
 
-#
-# main
-#
+    with SAMADhiDB() as db:
+        with confirm_transaction(db, "Insert into the database?"):
+            result = Result.create(
+                path=args.path,
+                description=args.description,
+                author=args.author,
+                creation_time=time,
+                elog=args.elog,
+                analysis_id=args.analysis,
+                )
+            if args.inputSamples is None:
+                inputSampleIDs = prompt_samples()
+            else:
+                inputSampleIDs = [ int(x) for x in opt.inputSamples.split(",") ]
+            for smpId in inputsampleIDs:
+                Sample.get_by_id(smpId).results.append(result)
+            print(result)
+
 if __name__ == '__main__':
     main()
