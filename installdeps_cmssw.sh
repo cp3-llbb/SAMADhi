@@ -39,17 +39,18 @@ if [ $? -ne 0 ]; then
     python "${pipinstall}/get-pip.py" --prefix="${pipinstall}" --no-setuptools
   fi
   export PYTHONPATH="${pipinstall}/lib/python${pymajmin}/site-packages:${PYTHONPATH}"
+  python -m pip install --prefix="${pipinstall}" --upgrade Cython
 fi
 
 ## install dependencies
 installpath="${CMSSW_BASE}/install/samadhidep"
-echo "--> Installing MySQL-python and storm"
-python -m pip install --prefix="${installpath}" --ignore-installed --upgrade --upgrade-strategy=only-if-needed MySQL-python storm
+echo "--> Installing peewee and pymysql"
+NO_SQLITE=1 python -m pip install --prefix="${installpath}" --upgrade peewee pymysql
 
 # root_interface toolfile
 toolfile="${installpath}/samadhidep.xml"
 cat <<EOF_TOOLFILE >"${toolfile}"
-<tool name="samadhidep" version="1.2.0">
+<tool name="samadhidep" version="2.1.0">
   <info url="https://github.com/cp3-llbb/SAMADhi"/>
   <client>
     <environment name="SAMADHIDEP_BASE" default="${installpath}"/>
