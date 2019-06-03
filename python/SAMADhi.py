@@ -170,7 +170,7 @@ class Sample(BaseModel):
                 "  path: {0.path}\n"
                 "  type: {0.sampletype}\n"
                 "  number of processed events: {0.nevents_processed:d}\n"
-                "  number of events: {0.nevents:d}\n"
+                "  number of events: {nevents}\n"
                 "  normalization: {0.normalization}\n"
                 "  sum of event weights: {0.event_weight_sum}\n"
                 "{sumw_extras}"
@@ -182,18 +182,18 @@ class Sample(BaseModel):
                 "  source sample: {0.source_sample_id}\n"
                 "  {files}"
                 ).format(self,
+                    nevents=("{0:d}".format(self.nevents) if self.nevents is not None else "none"),
                     sumw_extras=("  has extras sum of event weight\n" if self.extras_event_weight_sum else ""),
                     hasproclumi=("has" if self.processed_lumi else "does not have"),
-                    files="{0:d} files: \n    - {1}".format(self.files.count(),
+                    files=("{0:d} files: \n    - {1}".format(self.files.count(),
                             "\n    - ".join(
                                 (("{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files)
                                     if self.files.count() < 6 else
                                  (["{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files[:3]]
                                  +["...", "{0.lfn} ({0.nevents:d} entries)".format(self.files[-1])])
                                 )
-                            )
-                        if self.sample_id else "no files"
-                        )
+                            )) if self.sample_id else "no files"
+                           )
                     )
 
 class File(BaseModel):
@@ -253,8 +253,8 @@ class Result(BaseModel):
                     )
 
 class SampleResult(BaseModel):
-    result = ForeignKeyField(Result)
-    sample = ForeignKeyField(Sample)
+    result_id = ForeignKeyField(Result)
+    sample_id = ForeignKeyField(Sample)
 
     class Meta:
         table_name = 'sampleresult'
