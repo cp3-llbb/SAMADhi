@@ -1,23 +1,9 @@
 #!/usr/bin/env python
 """ Add a result to the database """
-import os.path
 from datetime import datetime
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import Sample, Result, SAMADhiDB
-from cp3_llbb.SAMADhi.utils import confirm_transaction, prompt_samples
-
-def parsePath(pth):
-    import os.path
-    import argparse
-    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
-    if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
-        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
-    return pth
-
-def userFromPath(pth):
-    import os
-    from pwd import getpwuid
-    return getpwuid(os.stat(pth).st_uid).pw_name
+from cp3_llbb.SAMADhi.utils import parsePath, userFromPath, timeFromPath, confirm_transaction, prompt_samples
 
 def main(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -34,7 +20,7 @@ def main(args=None):
     if args.author is None:
         args.author = userFromPath(args.path)
     if args.time == "path":
-        time = datetime.fromtimestamp(os.path.getctime(args.path))
+        time = timeFromPath(args.path)
     elif args.time is not None:
         time = datetime.strptime(args.time, '%Y-%m-%d %H:%M:%S')
     else:

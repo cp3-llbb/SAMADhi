@@ -4,12 +4,10 @@
 
 import cp3_llbb.SAMADhi.SAMADhi as SAMADhi
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB
+from cp3_llbb.SAMADhi.utils import replaceWildcards
 
 import os.path
 import argparse
-
-def replaceWildcards(arg):
-    return arg.replace("*", "%").replace("?", "_")
 
 def main(args=None):
     parser = argparse.ArgumentParser(description="Search for datasets, samples, results or analyses in SAMADhi")

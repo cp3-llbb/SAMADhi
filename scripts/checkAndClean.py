@@ -2,43 +2,7 @@
 """ Script to check samples for deletion """
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB
-
-def parsePath(pth):
-    import os.path
-    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
-    if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
-        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
-    return pth
-
-def checkWriteable(pth):
-    import os, os.path
-    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
-    if not os.access(pth, os.W_OK):
-        raise argparse.ArgumentError("Cannot write to {0}".format(pth))
-    if os.path.isfile(pth):
-        raise argparse.ArgumentError("File already exists: {0}".format(pth))
-    return pth
-
-@contextmanager
-def redirectOut(outArg):
-    if outArg == "-"
-        yield
-    else:
-        outPth = checkWriteable(outArg)
-        import sys
-        with open(outPth, "W") as outF:
-            bk_stdout = sys.stdout
-            sys.stdout = outF
-            yield
-            sys.stdout = bk_stdout
-
-def arg_loadJSON(pth):
-    if pth:
-        import json
-        with open(parsePath(pth)) as jsF:
-            return json.load(jsF)
-    else:
-        return dict()
+from cp3_llbb.SAMADhi.utils import parsePath, redirectOut, arg_loadJSON
 
 def splitWith(sequence, predicate):
     trueList, falseList = [], []

@@ -1,3 +1,60 @@
+def parsePath(pth):
+    """ Expand (user and vars), and check that a path is a valid file or directory """
+    import os.path
+    import argparse
+    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
+    if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
+        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
+    return pth
+
+def userFromPath(pth):
+    """ Get the username of the path owner """
+    import os
+    from pwd import getpwuid
+    return getpwuid(os.stat(pth).st_uid).pw_name
+
+def timeFromPath(pth):
+    import os.path
+    from datetime import datetime
+    return datetime.fromtimestamp(os.path.getctime(pth))
+
+def checkWriteable(pth):
+    """ Expand path, and check that it is writeable and does not exist yet """
+    import os, os.path
+    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
+    if not os.access(pth, os.W_OK):
+        raise argparse.ArgumentError("Cannot write to {0}".format(pth))
+    if os.path.isfile(pth):
+        raise argparse.ArgumentError("File already exists: {0}".format(pth))
+    return pth
+
+@contextmanager
+def redirectOut(outArg):
+    """ Redirect sys.stdout to file (if the argument is a writeable file that does not exist yet),
+    no-op if the argument is '-' """
+    if outArg == "-"
+        yield
+    else:
+        outPth = checkWriteable(outArg)
+        import sys
+        with open(outPth, "W") as outF:
+            bk_stdout = sys.stdout
+            sys.stdout = outF
+            yield
+            sys.stdout = bk_stdout
+
+def arg_loadJSON(pth):
+    """ Try to parse the JSON file (type for argparse argumet) """
+    if pth:
+        import json
+        with open(parsePath(pth)) as jsF:
+            return json.load(jsF)
+    else:
+        return dict()
+
+def replaceWildcards(arg):
+    return arg.replace("*", "%").replace("?", "_")
+
 def confirm(prompt=None, resp=False):
     """prompts for yes or no response from the user. Returns True for yes and
     False for no. 'resp' should be set to the default value assumed by the caller when

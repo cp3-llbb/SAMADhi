@@ -6,7 +6,7 @@ import glob
 from pwd import getpwuid
 from datetime import datetime
 from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, File, SAMADhiDB
-from cp3_llbb.SAMADhi.utils import confirm, prompt_dataset, prompt_sample
+from cp3_llbb.SAMADhi.utils import parsePath, userFromPath, timeFromPath, confirm, prompt_dataset, prompt_sample
 
 def get_file_data_(f_):
     import ROOT
@@ -27,19 +27,6 @@ def get_file_data_(f_):
         entries = tree.GetEntriesFast()
 
     return (weight_sum, entries)
-
-def parsePath(pth):
-    import os.path
-    import argparse
-    pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
-    if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
-        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
-    return pth
-
-def userFromPath(pth):
-    import os
-    from pwd import getpwuid
-    return getpwuid(os.stat(pth).st_uid).pw_name
 
 def main(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -78,7 +65,7 @@ def main(args=None):
     if args.author is None:
         args.author = userFromPath(args.path)
     if args.time == "path":
-        args.time = datetime.fromtimestamp(os.path.getctime(args.path))
+        args.time = timeFromPath(args.path)
     elif args.time is not None:
         args.time = datetime.strptime(args.time, '%Y-%m-%d %H:%M:%S')
     else:

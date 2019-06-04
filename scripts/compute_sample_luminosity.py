@@ -5,9 +5,7 @@ from itertools import chain
 import subprocess
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import Sample, SAMADhiDB
-
-def replaceWildcards(arg):
-    return arg.replace("*", "%").replace("?", "_")
+from cp3_llbb.SAMADhi.utils import replaceWildcards
 
 def parse_luminosity_csv(result):
     """ Parse the CSV file produced by brilcalc, and return the total recorded luminosity in /pb """

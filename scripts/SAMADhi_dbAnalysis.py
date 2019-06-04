@@ -4,6 +4,7 @@
 import os,errno,json
 import re
 import ROOT
+ROOT.PyConfig.IgnoreCommandLineOptions = True
 ROOT.gROOT.SetBatch()
 import argparse
 from datetime import datetime
