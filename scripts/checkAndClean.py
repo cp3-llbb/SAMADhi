@@ -64,6 +64,8 @@ def main(args=None)
             help="JSON file with sample whitelists per analysis.")
     parser.add_argument("-d", "--dry-run", action="store_true",
             help="Dry run: do not write to file and/or touch the database.")
+    parser.add_argument("--database", default="~/.samadhi",
+            help="JSON Config file with database connection settings and credentials")
     args = parser.parse_args(args=args)
 
     with redirectOut(args.output if not args.dry_run else "-"),
@@ -85,7 +87,7 @@ def main(args=None)
         print("\n\nSamples to be deleted because of unreachable path:\n{0}".format(
             "\n".join(smp["name"] for smp in smp_delete)))
         ## actually perform the cleanup
-        with SAMADhiDB() as db:
+        with SAMADhiDB(credentials=args.database) as db:
             with maybe_dryrun(db, dryRun=args.dry_run):
                 if opts.cleanupMissing:
                     for smp in smp_empty_delete:

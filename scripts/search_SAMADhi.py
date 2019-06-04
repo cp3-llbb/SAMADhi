@@ -19,8 +19,9 @@ def main(args=None):
     pquery.add_argument("-n", "--name", help="filter on name")
     pquery.add_argument("-p", "--path", help="filter on path", type=(lambda pth : os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))))
     pquery.add_argument("-i", "--id", type=int, help="filter on id")
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
     args = parser.parse_args(args=args)
-# more validation
+    # more validation
     if args.type in ("dataset", "analysis") and args.path:
         parser.error("Cannot search {0} by path".format(args.type))
     elif args.type == "result" and args.name:
@@ -29,7 +30,7 @@ def main(args=None):
     objCls = getattr(SAMADhi, args.type.capitalize())
     idAttrName = "{0}_id".format(args.type)
 
-    with SAMADhiDB():
+    with SAMADhiDB(credentials=args.database):
         qry = objCls.select()
         if args.id:
             qry = qry.where(getattr(objCls, idAttrName) == args.id)

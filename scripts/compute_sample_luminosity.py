@@ -91,6 +91,7 @@ def main(args=None):
     parser.add_argument('--update', action='store_true', help='Update brilcalc')
     parser.add_argument('-n', '--username', help='Remote lxplus username (local username by default)')
     parser.add_argument('-t', '--normtag', help='Normtag on /afs')
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
     options = parser.parse_args(args=args)
 
     if not options.bootstrap and not options.update and options.ids is None and options.names is None:
@@ -110,7 +111,7 @@ def main(args=None):
     elif options.update:
         update_brilcalc(local=options.local, username=options.username)
     else:
-        with SAMADhiDB():
+        with SAMADhiDB(credentials=args.database):
             for sample in chain(
                     (Sample.get_by_id(id_) for id_ in options.ids),
                     (Sample.get_or_none(Sample.name % replaceWildcards(name)) for name in options.names)):

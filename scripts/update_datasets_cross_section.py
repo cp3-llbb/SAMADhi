@@ -15,9 +15,10 @@ def main(args=None):
         'Only \'*\' and \'?\' wildcards are supported. Take note that filtering is applied to samples, and not to datasets.'))
     parser.add_argument('-f', '--force', type=float, help='For the cross-section of all datasets matching the regular expression to be this value', metavar='XSEC')
     parser.add_argument('-w', '--write', action='store_true', help='Write changes to the database')
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
     args = parser.parse_args(args)
 
-    with SAMADhiDB() as db:
+    with SAMADhiDB(credentials=args.database) as db:
         samples = Sample.select().where(Sample.name % replaceWildcards(args.regex))
         if samples.count() == 0:
             print("No sample found.")

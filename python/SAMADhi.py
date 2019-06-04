@@ -28,11 +28,15 @@ def loadCredentials(path="~/.samadhi"):
 
     with open(credentials, "r") as f:
         data = json.load(f)
-    for ky in ("login", "password", "database"):
-        if ky not in data:
-            raise KeyError("Credentials json file at {0} does not contain '{1}'".format(credentials, ky))
-    if "hostname" not in data:
-        data["hostname"] = "localhost"
+    if data.get("test", False):
+        if "database" not in data:
+            raise KeyError("Credentials json file at {0} does not contain 'database'".format(credentials))
+    else:
+        for ky in ("login", "password", "database"):
+            if ky not in data:
+                raise KeyError("Credentials json file at {0} does not contain '{1}'".format(credentials, ky))
+        if "hostname" not in data:
+            data["hostname"] = "localhost"
 
     return data
 
@@ -292,6 +296,14 @@ from contextlib import contextmanager
 def SAMADhiDB(credentials='~/.samadhi'):
     """create a database object and returns the db store from STORM"""
     cred = loadCredentials(path=credentials)
-    db = MySQLDatabase(cred["database"], user=cred["login"], password=cred["password"], host=cred["hostname"])
+    if cred.get("test", False):
+        import os.path
+        dbPath = cred["database"]
+        if not os.path.isabs(dbPath):
+            dbPath = os.path.join(os.path.abspath(os.path.dirname(os.path.expanduser(credentials))), dbPath)
+            print(dbPath)
+        db = SqliteDatabase(dbPath)
+    else:
+        db = MySQLDatabase(cred["database"], user=cred["login"], password=cred["password"], host=cred["hostname"])
     with db.bind_ctx(_models):
         yield db

@@ -28,6 +28,7 @@ def main(args=None):
     parser.add_argument("-A", "--analysis", type=int, help="analysis whose result belong to")
     parser.add_argument("-a", "--author", help="author of the result. If not specified, is taken from the path")
     parser.add_argument("-t", "--time", help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS")
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
     args = parser.parse_args(args=args)
 
     if args.author is None:
@@ -39,7 +40,7 @@ def main(args=None):
     else:
         time = datetime.now()
 
-    with SAMADhiDB() as db:
+    with SAMADhiDB(credentials=args.database) as db:
         with confirm_transaction(db, "Insert into the database?"):
             result = Result.create(
                 path=args.path,

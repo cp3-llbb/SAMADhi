@@ -69,6 +69,8 @@ def main(args=None):
             help="list of files (full path, comma-separated values)")
     parser.add_argument("-t", "--time",
             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS. Default is current time.")
+    parser.add_argument("--database", default="~/.samadhi",
+            help="JSON Config file with database connection settings and credentials")
     parser.add_argument("type", choices=["PAT", "SKIM", "RDS", "NTUPLES", "HISTOS"], help="Sample type")
     parser.add_argument("path", help="location of the sample on disk", type=parsePath)
     args = parser.parse_args(args=args)
@@ -85,7 +87,7 @@ def main(args=None):
         args.name = next(tk for tk in reversed(args.path.split("/")) if len(tk))
 
 
-    with SAMADhiDB() as db:
+    with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.name)
         with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing)):
             sample, created = Sample.get_or_create(

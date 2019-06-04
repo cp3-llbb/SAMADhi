@@ -43,6 +43,8 @@ def main(args=None):
         help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
     parser.add_argument("-d", "--dry", action="store_true", dest="dryRun",
         help="Dry run: do no write to disk")
+    parser.add_argument("--database", default="~/.samadhi",
+        help="JSON Config file with database connection settings and credentials")
     args = parser.parse_args(args=args)
     if not args.dryRun:
         if os.path.exists(args.path):
@@ -51,7 +53,7 @@ def main(args=None):
             os.makedirs(args.path)
 
     # connect to the MySQL database using default credentials
-    with SAMADhiDB() as db, openRootFile(os.path.join(args.path, "analysisReport.root"), noOp=dryRun, mode="UPDATE"):
+    with SAMADhiDB(credentials=args.database) as db, openRootFile(os.path.join(args.path, "analysisReport.root"), noOp=dryRun, mode="UPDATE"):
         # run each of the checks and collect data
         # collect general statistics
         general = collectGeneralStats()
