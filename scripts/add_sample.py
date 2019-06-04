@@ -6,7 +6,7 @@ import glob
 from pwd import getpwuid
 from datetime import datetime
 from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, File, SAMADhiDB
-from cp3_llbb.SAMADhi.userPrompt import confirm, prompt_dataset, prompt_sample
+from cp3_llbb.SAMADhi.utils import confirm, prompt_dataset, prompt_sample
 
 def get_file_data_(f_):
     import ROOT

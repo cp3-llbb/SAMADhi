@@ -3,7 +3,7 @@ import json
 import subprocess
 
 from .SAMADhi import Dataset, SAMADhiDB
-from .userPrompt import confirm_transaction
+from .utils import confirm_transaction
 
 def do_das_query(query):
     """

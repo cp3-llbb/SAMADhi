@@ -1,5 +1,3 @@
-from cp3_llbb.SAMADhi.SAMADhi import Sample, Dataset
-
 def confirm(prompt=None, resp=False):
     """prompts for yes or no response from the user. Returns True for yes and
     False for no. 'resp' should be set to the default value assumed by the caller when
@@ -34,6 +32,7 @@ def confirm(prompt=None, resp=False):
 
 def prompt_samples():
     """prompts for the source sample among the existing ones"""
+    from .SAMADhi import Sample
     print("No source sample defined.")
     print("Please select the samples associated with this result.")
     # full list of samples
@@ -49,6 +48,7 @@ def prompt_samples():
 
 def prompt_sample(sample):
     """prompts for the source sample among the existing ones"""
+    from .SAMADhi import Sample
     print("Please select the sample associated with this sample.")
     # full list of samples
     print("Sample\t\tName")
@@ -69,6 +69,7 @@ def prompt_sample(sample):
 
 def prompt_dataset(sample):
     """prompts for the source dataset among the existing ones"""
+    from .SAMADhi import Dataset
     print("Please select the dataset associated with this sample.")
     # full list of datasets
     print("Dataset\t\tName")

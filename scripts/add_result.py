@@ -4,7 +4,7 @@ import os.path
 from datetime import datetime
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import Sample, Result, SAMADhiDB
-from cp3_llbb.SAMADhi.userPrompt import confirm_transaction, prompt_samples
+from cp3_llbb.SAMADhi.utils import confirm_transaction, prompt_samples
 
 def parsePath(pth):
     import os.path
