@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+""" Interactively explore the SAMADhi database """
+import argparse
+
+def main(args=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
+    args = parser.parse_args(args=args)
+
+    import IPython
+    from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB, _models
+    for md in _models:
+        locals()[md.__name__] = md
+    with SAMADhiDB(credentials=args.database) as db:
+        IPython.embed(banner1=(
+            "Interactively exploring SAMADhi database {database}\n"
+            "Available models: {models}"
+            ).format(
+                database="{0}({1}){2}".format(db.__class__.__name__, db.database,
+                    (" at {0}".format(db.connect_params["host"]) if "host" in db.connect_params else "")),
+                models=", ".join(md.__name__ for md in _models)
+                ))
+
+if __name__ == "__main__":
+    main()

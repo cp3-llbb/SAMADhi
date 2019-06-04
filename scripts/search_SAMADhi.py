@@ -28,14 +28,14 @@ def main(args=None):
     objCls = getattr(SAMADhi, args.type.capitalize())
     idAttrName = "{0}_id".format(args.type)
 
-    with SAMADhiDB(credentials=args.database):
+    with SAMADhiDB(credentials=args.database) as db:
         qry = objCls.select()
         if args.id:
             qry = qry.where(getattr(objCls, idAttrName) == args.id)
         elif args.name:
-            qry = qry.where(objCls.name % replaceWildcards(args.name))
+            qry = qry.where(objCls.name % replaceWildcards(args.name, db=db))
         elif args.path:
-            qry = qry.where(objCls.path % replaceWildcards(args.path))
+            qry = qry.where(objCls.path % replaceWildcards(args.path, db=db))
         results = qry.order_by(getattr(objCls, idAttrName))
 
         if args.long:

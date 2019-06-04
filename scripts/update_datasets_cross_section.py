@@ -19,7 +19,7 @@ def main(args=None):
     args = parser.parse_args(args)
 
     with SAMADhiDB(credentials=args.database) as db:
-        samples = Sample.select().where(Sample.name % replaceWildcards(args.regex))
+        samples = Sample.select().where(Sample.name % replaceWildcards(args.regex, db=db))
         if samples.count() == 0:
             print("No sample found.")
         else:

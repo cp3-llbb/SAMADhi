@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 def parsePath(pth):
     """ Expand (user and vars), and check that a path is a valid file or directory """
     import os.path
@@ -32,7 +34,7 @@ def checkWriteable(pth):
 def redirectOut(outArg):
     """ Redirect sys.stdout to file (if the argument is a writeable file that does not exist yet),
     no-op if the argument is '-' """
-    if outArg == "-"
+    if outArg == "-":
         yield
     else:
         outPth = checkWriteable(outArg)
@@ -52,7 +54,11 @@ def arg_loadJSON(pth):
     else:
         return dict()
 
-def replaceWildcards(arg):
+def replaceWildcards(arg, db=None):
+    if db:
+        from peewee import SqliteDatabase
+        if isinstance(db, SqliteDatabase):
+            return arg ## sqlite uses the usual * etc.
     return arg.replace("*", "%").replace("?", "_")
 
 def confirm(prompt=None, resp=False):
@@ -153,7 +159,6 @@ def prompt_dataset(sample):
         else:
             continue
 
-from contextlib import contextmanager
 @contextmanager
 def confirm_transaction(db, prompt):
     with db.manual_commit():
