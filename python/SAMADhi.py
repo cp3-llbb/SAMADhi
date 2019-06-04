@@ -14,6 +14,7 @@ _models = [] ## list for binding a database
 import warnings
 warnings.filterwarnings("ignore", module="peewee", category=UserWarning, message="Unable to determine MySQL version: .*")
 from peewee import *
+import datetime
 
 def loadCredentials(path="~/.samadhi"):
     import json, os, stat
@@ -65,7 +66,10 @@ class Analysis(BaseModel):
                     )
 
 class Dataset(BaseModel):
-    """Table to represent one sample from DAS on which we run the analysis"""
+    """ Table to represent one sample from DAS on which we run the analysis
+
+    When creating a Dataset, at least the name and datatype (mc or data) attributes must be specified.
+    """
     cmssw_release = CharField(null=True)
     creation_time = DateTimeField(null=True)
     dataset_id = AutoField()
@@ -88,42 +92,51 @@ class Dataset(BaseModel):
         for rK in ("name", "datatype"):
             if rK not in kwargs:
                 raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
-        if kwargs["datatype"] not in (u"mc", u"data"):
+        if kwargs["datatype"] not in ("mc", "data"):
             raise ValueError("dataset type must be mc or data, not {0!r}".format(kwargs["datatype"]))
-        super(Dataset, cls).create(*args, **kwargs)
+        return super(Dataset, cls).create(**kwargs)
 
     def __str__(self):
         return ("Dataset #{0.dataset_id:d}:\n"
                 "  name: {0.name}\n"
                 "  process: {0.process}\n"
-                "  cross-section: {0.xsection:f}\n"
-                "  number of events: {0.nevents:d}\n"
-                "  size on disk: {0.dsize:d}\n"
+                "  cross-section: {xsection}\n"
+                "  number of events: {nevents}\n"
+                "  size on disk: {dsize}\n"
                 "  CMSSW release: {0.cmssw_release}\n"
                 "  global tag: {0.globaltag}\n"
                 "  type (data or mc): {0.datatype}\n"
-                "  center-of-mass energy: {0.energy:f} TeV\n"
+                "  center-of-mass energy: {energy} TeV\n"
                 "  creation time (on DAS): {0.creation_time!s}\n"
                 "  comment: {0.user_comment}"
-                ).format(self)
+                ).format(self,
+                        nevents=("{0:d}".format(self.nevents) if self.nevents is not None else "None"),
+                        dsize=("{0:d}".format(self.dsize) if self.dsize is not None else "None"),
+                        xsection=("{0:f}".format(self.xsection) if self.xsection is not None else "None"),
+                        energy=("{0:f}".format(self.energy) if self.energy is not None else "None"),
+                        )
 
 class Sample(BaseModel):
-    """Table to represent one processed sample, typically a PATtupe, skim, RDS, CP, etc."""
+    """ Table to represent one processed sample, typically a PATtupe, skim, RDS, CP, etc.
+
+    When creating a Sample, at least the name, path, sampletype (any of Sample.SampleTypes)
+    and nevents_processed attributes must be specified.
+    """
     author = TextField(null=True)
     code_version = CharField(null=True)
-    creation_time = DateTimeField(constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")])
+    creation_time = DateTimeField(constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")], default=datetime.datetime.now)
     event_weight_sum = FloatField(null=True)
     extras_event_weight_sum = TextField(null=True)
     luminosity = FloatField(null=True)
     name = CharField(index=True)
     nevents = IntegerField(null=True)
     nevents_processed = IntegerField(null=True)
-    normalization = FloatField(constraints=[SQL("DEFAULT 1")])
+    normalization = FloatField(constraints=[SQL("DEFAULT 1")], default=1.)
     path = CharField()
     processed_lumi = TextField(null=True)
     sample_id = AutoField()
     sampletype = CharField()
-    source_dataset = ForeignKeyField(Dataset, backref="samples")
+    source_dataset = ForeignKeyField(Dataset, null=True, backref="samples")
     source_sample = ForeignKeyField("self", null=True, backref="derived_samples")
     user_comment = TextField(null=True)
 
@@ -197,6 +210,10 @@ class Sample(BaseModel):
                     )
 
 class File(BaseModel):
+    """ Table to represent a file (in a sample)
+
+    When creating a File, at least the lfn, pfn, event_weight_sum and nevents attributes must be specified.
+    """
     event_weight_sum = FloatField(null=True)
     extras_event_weight_sum = TextField(null=True)
     id = BigAutoField()
@@ -219,10 +236,13 @@ class File(BaseModel):
         return self.lfn
 
 class Result(BaseModel):
-    """Table to represent one physics result, combining several samples."""
+    """Table to represent one physics result, combining several samples.
+
+    When creating a Result, at least the path attribute must be specified.
+    """
     analysis = ForeignKeyField(Analysis, null=True, backref="results")
     author = TextField(null=True)
-    creation_time = DateTimeField(constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")])
+    creation_time = DateTimeField(constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")], default=datetime.datetime.now)
     description = TextField(null=True)
     elog = CharField(null=True)
     path = CharField(index=True)
@@ -240,7 +260,7 @@ class Result(BaseModel):
         for rK in ("path",):
             if rK not in kwargs:
                 raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
-        return super(Result, cls).create(*args, **kwargs)
+        return super(Result, cls).create(**kwargs)
 
     def __str__(self):
         return ("Result in {0.path}\n"
