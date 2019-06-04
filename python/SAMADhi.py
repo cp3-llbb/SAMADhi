@@ -301,7 +301,6 @@ def SAMADhiDB(credentials='~/.samadhi'):
         dbPath = cred["database"]
         if not os.path.isabs(dbPath):
             dbPath = os.path.join(os.path.abspath(os.path.dirname(os.path.expanduser(credentials))), dbPath)
-            print(dbPath)
         db = SqliteDatabase(dbPath)
     else:
         db = MySQLDatabase(cred["database"], user=cred["login"], password=cred["password"], host=cred["hostname"])
