@@ -39,7 +39,7 @@ def main(args=None):
                             possible_matches = Dataset.select().where(
                                     (Dataset.process % sample.source_dataset.process) &
                                     (Dataset.energy == sample.source_dataset.energy) &
-                                    ( Dataset.dataset_id != sample.source_dataset.dataset_id )
+                                    ( Dataset.id != sample.source_dataset.id )
                                     )
                             if possible_matches.count() == 0:
                                 print("No match for this dataset found")

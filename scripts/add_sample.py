@@ -88,22 +88,22 @@ def main(args=None):
                     luminosity=args.lumi,
                     code_version=args.code_version,
                     user_comment=args.comment,
-                    source_dataset_id=args.source_dataset_id,
-                    source_sample_id=args.source_sample_id,
+                    source_dataset=( Dataset.get_or_none(Dataset.id == args.source_dataset_id) if args.source_dataset_id is not None else None ),
+                    source_sample=( Sample.get_or_none(Dataset.id == args.source_sample_id) if args.source_sample_id is not None else None ),
                     author=args.author,
                     creation_time=args.time,
                     )
 
-            if sample.source_dataset_id is None:
+            if sample.source_dataset is None:
                 prompt_dataset(sample) ## TODO: check existence
-            if sample.source_sample_id is None:
+            if sample.source_sample is None:
                 prompt_sample(sample) ## TODO: check existence
 
             if sample.nevents_processed is None:
-                if sample.source_sample_id is not None:
-                    sample.nevents_processed = Sample.get_by_id(sample.source_sample_id).nevents_processed
-                elif sample.source_dataset_id is not None:
-                    sample.nevents_processed = Dataset.get_by_id(sample.source_dataset_id).nevents
+                if sample.source_sample is not None:
+                    sample.nevents_processed = sample.source_sample.nevents_processed
+                elif sample.source_dataset is not None:
+                    sample.nevents_processed = sample.source_dataset.nevents
                 else:
                     print("Warning: Number of processed events not given, and no way to guess it.")
 

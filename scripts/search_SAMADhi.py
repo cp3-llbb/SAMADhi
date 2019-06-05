@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-
-# Script to add a sample to the database
-
 import cp3_llbb.SAMADhi.SAMADhi as SAMADhi
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB
 from cp3_llbb.SAMADhi.utils import replaceWildcards
@@ -26,25 +23,23 @@ def main(args=None):
         parser.error("Cannot search results by name")
 
     objCls = getattr(SAMADhi, args.type.capitalize())
-    idAttrName = "{0}_id".format(args.type)
 
     with SAMADhiDB(credentials=args.database) as db:
         qry = objCls.select()
         if args.id:
-            qry = qry.where(getattr(objCls, idAttrName) == args.id)
+            qry = qry.where(objCls.id == args.id)
         elif args.name:
             qry = qry.where(objCls.name % replaceWildcards(args.name, db=db))
         elif args.path:
             qry = qry.where(objCls.path % replaceWildcards(args.path, db=db))
-        results = qry.order_by(getattr(objCls, idAttrName))
+        results = qry.order_by(objCls.id)
 
         if args.long:
             for entry in results:
                 print(str(entry))
                 print(86*"-")
         else:
-            fmtStr = "{{0.{0}}}\t{{0.{1}}}".format(idAttrName,
-                    ("name" if args.type not in ("result", "analysis") else "description"))
+            fmtStr = "{{0.id}}\t{{0.{0}}}".format(("name" if args.type not in ("result", "analysis") else "description"))
             for res in results:
                 print(fmtStr.format(res))
 

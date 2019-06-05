@@ -50,7 +50,7 @@ class BaseModel(Model):
         database = database
 
 class Analysis(BaseModel):
-    analysis_id = AutoField()
+    id = AutoField(column_name="analysis_id")
     cadiline = TextField(null=True)
     contact = TextField(null=True)
     description = TextField(null=True)
@@ -76,7 +76,7 @@ class Dataset(BaseModel):
     """
     cmssw_release = CharField(null=True)
     creation_time = DateTimeField(null=True)
-    dataset_id = AutoField()
+    id = AutoField(column_name="dataset_id")
     datatype = CharField()
     dsize = BigIntegerField(null=True)
     energy = FloatField(null=True)
@@ -101,7 +101,7 @@ class Dataset(BaseModel):
         return super(Dataset, cls).create(**kwargs)
 
     def __str__(self):
-        return ("Dataset #{0.dataset_id:d}:\n"
+        return ("Dataset #{0.id:d}:\n"
                 "  name: {0.name}\n"
                 "  process: {0.process}\n"
                 "  cross-section: {xsection}\n"
@@ -138,7 +138,7 @@ class Sample(BaseModel):
     normalization = FloatField(constraints=[SQL("DEFAULT 1")], default=1.)
     path = CharField()
     processed_lumi = TextField(null=True)
-    sample_id = AutoField()
+    id = AutoField(column_name="sample_id")
     sampletype = CharField()
     source_dataset = ForeignKeyField(Dataset, null=True, backref="samples")
     source_sample = ForeignKeyField("self", null=True, backref="derived_samples")
@@ -149,7 +149,7 @@ class Sample(BaseModel):
 
     @property
     def results(self):
-        return Result.select().join(SampleResult).join(Sample).where(Sample.sample_id == self.sample_id)
+        return Result.select().join(SampleResult).join(Sample).where(Sample.id == self.id)
 
     SampleTypes = [ "PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER" ]
 
@@ -163,7 +163,7 @@ class Sample(BaseModel):
         return super(Sample, cls).create(**kwargs)
 
     def removeFiles(self):
-        File.delete().where(File.sample_id == self.sample_id)
+        File.delete().where(File.sample.id == self.id)
         self.files.clear()
     def getLuminosity(self):
         """Computes the sample (effective) luminosity"""
@@ -182,7 +182,7 @@ class Sample(BaseModel):
         ## in cases not treated above it is impossible to compute a number, so return None
 
     def __str__(self):
-        return ("Sample #{0.sample_id:d} (created on {0.creation_time!s} by {0.author})\n"
+        return ("Sample #{0.id:d} (created on {0.creation_time!s} by {0.author})\n"
                 "  name: {0.name}\n"
                 "  path: {0.path}\n"
                 "  type: {0.sampletype}\n"
@@ -195,13 +195,15 @@ class Sample(BaseModel):
                 "  {hasproclumi} processed luminosity sections information\n"
                 "  code version: {0.code_version}\n"
                 "  comment: {0.user_comment}\n"
-                "  source dataset: {0.source_dataset_id}\n"
-                "  source sample: {0.source_sample_id}\n"
+                "{source_dataset}"
+                "{source_sample}"
                 "  {files}"
                 ).format(self,
                     nevents=("{0:d}".format(self.nevents) if self.nevents is not None else "none"),
                     sumw_extras=("  has extras sum of event weight\n" if self.extras_event_weight_sum else ""),
                     hasproclumi=("has" if self.processed_lumi else "does not have"),
+                    source_dataset=("  source dataset: {0.id:d}\n".format(self.source_dataset) if self.source_dataset is not None else ""),
+                    source_sample=("  source sample: {0.id:d}\n".format(self.source_sample) if self.source_sample is not None else ""),
                     files=("{0:d} files: \n    - {1}".format(self.files.count(),
                             "\n    - ".join(
                                 (("{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files)
@@ -209,7 +211,7 @@ class Sample(BaseModel):
                                  (["{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files[:3]]
                                  +["...", "{0.lfn} ({0.nevents:d} entries)".format(self.files[-1])])
                                 )
-                            )) if self.sample_id else "no files"
+                            )) if self.id else "no files"
                            )
                     )
 
@@ -250,14 +252,14 @@ class Result(BaseModel):
     description = TextField(null=True)
     elog = CharField(null=True)
     path = CharField(index=True)
-    result_id = AutoField()
+    id = AutoField(column_name="result_id")
 
     class Meta:
         table_name = 'result'
 
     @property
     def samples(self):
-        return Sample.select().join(SampleResult).join(Result).where(Result.result_id == self.result_id)
+        return Sample.select().join(SampleResult).join(Result).where(Result.id == self.id)
 
     @classmethod
     def create(cls, **kwargs):
@@ -277,15 +279,15 @@ class Result(BaseModel):
                     )
 
 class SampleResult(BaseModel):
-    result_id = ForeignKeyField(Result)
-    sample_id = ForeignKeyField(Sample)
+    result = ForeignKeyField(Result, column_name="result_id")
+    sample = ForeignKeyField(Sample, column_name="sample_id")
 
     class Meta:
         table_name = 'sampleresult'
         indexes = (
-            (('sample_id', 'result_id'), True),
+            (('sample', 'result'), True),
         )
-        primary_key = CompositeKey('result_id', 'sample_id')
+        primary_key = CompositeKey('result', 'sample')
 
 # all models, for binding in SAMADhiDB and import
 _models = [Analysis, Dataset, Sample, File, Result, SampleResult]

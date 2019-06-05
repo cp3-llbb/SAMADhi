@@ -243,7 +243,7 @@ def checkResultPath():
     for res in Result.select():
         # check that the path exists, and keep track of the sample if not the case.
         if not os.path.exists(res.path):
-            print("Result #{0.result_id} (created on {0.creation_time} by {0.author}):".format(res))
+            print("Result #{0.id} (created on {0.creation_time} by {0.author}):".format(res))
             print(" missing path: {0}".format(res.path))
             result.append(res)
     if len(result) == 0:
@@ -259,7 +259,7 @@ def checkSamplePath():
         vpath = getSamplePath(sample)
         for path in vpath:
             if not os.path.exists(path):
-                print "Sample #%s (created on %s by %s):"%(str(sample.sample_id),str(sample.creation_time),str(sample.author)),
+                print "Sample #%s (created on %s by %s):"%(str(sample.id),str(sample.creation_time),str(sample.author)),
                 print " missing path: %s" %path
                 print vpath
                 result.append(sample)
@@ -274,7 +274,7 @@ def getSamplePath(sample):
     if sample.path == "":
         vpath = set()
         regex = r".*SFN=(.*)"
-        for f in SFile.select().where(SFile.sampld_id == sample.sample_id):
+        for f in SFile.select().where(SFile.sample.id == sample.id):
             m = re.search(regex, f.pfn)
             if m:
                 vpath.add(os.path.dirname(m.group(1)))
@@ -296,11 +296,11 @@ def selectResults(symlinkDir):
                 path = os.path.join(path, f)
 		res.path = path
 	if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
-	    symlink = os.path.join(symlinkDir, "res_{0}.root".format(res.res_id))
-	    relpath = "../data/res_{0}.root"%(res.res_id)
+	    symlink = os.path.join(symlinkDir, "res_{0}.root".format(res.id))
+	    relpath = "../data/res_{0}.root"%(res.id)
 	    force_symlink(path, symlink)
 	    result.append([ res, relpath ])
-            print("res #{0.res_id} (created on {0.creation_time} by {0.author}): ".format(res))
+            print("res #{0.id} (created on {0.creation_time} by {0.author}): ".format(res))
             print(symlink)
     if len(result) == 0:
         print("None")
@@ -315,7 +315,7 @@ def checkResultConsistency():
       # normaly, this should be protected already at the level of sql rules
       for sample in res.samples:
           if sample is None:
-              print("Result #%s (created on %s by %s):"%(str(res.result_id),str(res.creation_time),str(res.author)),
+              print("Result #%s (created on %s by %s):"%(str(res.id),str(res.creation_time),str(res.author)),
               print "inconsistent source sample"
               result.append([res,"inconsistent source sample"])
               print res
@@ -334,12 +334,12 @@ def checkSampleConsistency():
         sourceDataset = sample.source_dataset
         sourceSample = sample.source_sample
         if sample.source_dataset_id is not None and sample.source_dataset is None:
-            print("Sample #{0.sample_id} (created on {0.creation_time} by {0.author}".format(sample))
+            print("Sample #{0.id} (created on {0.creation_time} by {0.author}".format(sample))
             print("inconsistent source dataset")
             result.append([ sample, "inconsistent source dataset" ])
             print(sample)
         if sample.source_sample_id is not None and sample.source_sample is None:
-            print("Sample #{0.sample_id} (created on {0.creation_time} by {0.author}".format(sample))
+            print("Sample #{0.id} (created on {0.creation_time} by {0.author}".format(sample))
             print("inconsistent source sample")
             result.append([ sample, "inconsistent source sample" ])
     if len(array) == 0:

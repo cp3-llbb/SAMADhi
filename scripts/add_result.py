@@ -34,7 +34,7 @@ def main(args=None):
                 author=args.author,
                 creation_time=time,
                 elog=args.elog,
-                analysis_id=args.analysis,
+                analysis=args.analysis,
                 )
             if args.inputSamples is None:
                 inputSampleIDs = prompt_samples()
