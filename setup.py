@@ -56,6 +56,7 @@ setup(
     keywords='database',
 
     install_requires=["peewee", "pymysql"],
+    tests_require=["pytest", "pytest-console-scripts"],
 
     packages=["cp3_llbb.SAMADhi"],
     package_dir={"cp3_llbb.SAMADhi": "python"},

@@ -1,12 +1,9 @@
-import warnings
-for warnMod in ("pysqlite2.dbapi2", "peewee"):
-    warnings.filterwarnings("ignore", module=warnMod, category=DeprecationWarning, message="Converters and adapters are deprecated. Please use only supported SQLite types. Any type mapping should happen in layer above this module.")
 import pytest
-from peewee import SqliteDatabase
-from cp3_llbb.SAMADhi.SAMADhi import _models as MODELS
 
 @pytest.fixture(scope="module")
 def sqlitetestdb():
+    from cp3_llbb.SAMADhi.SAMADhi import _models as MODELS
+    from peewee import SqliteDatabase
     test_db = SqliteDatabase(":memory:")
     test_db.bind(MODELS, bind_refs=False, bind_backrefs=False)
     test_db.connect()

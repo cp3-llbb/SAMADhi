@@ -45,7 +45,7 @@ fi
 ## install dependencies
 installpath="${CMSSW_BASE}/install/samadhidep"
 echo "--> Installing peewee and pymysql"
-NO_SQLITE=1 python -m pip install --prefix="${installpath}" --ignore-installed --upgrade peewee pymysql pytest
+NO_SQLITE=1 python -m pip install --prefix="${installpath}" --ignore-installed --upgrade peewee pymysql pytest pytest-console-scripts
 
 # root_interface toolfile
 toolfile="${installpath}/samadhidep.xml"
