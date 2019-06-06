@@ -61,7 +61,7 @@ def replaceWildcards(arg, db=None):
             return arg ## sqlite uses the usual * etc.
     return arg.replace("*", "%").replace("?", "_")
 
-def confirm(prompt=None, resp=False):
+def confirm(prompt=None, resp=False, assumeDefault=False):
     """prompts for yes or no response from the user. Returns True for yes and
     False for no. 'resp' should be set to the default value assumed by the caller when
     user simply types ENTER.
@@ -81,6 +81,9 @@ def confirm(prompt=None, resp=False):
         prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
     else:
         prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
+    if assumeDefault:
+        print("".join((prompt, ("y" if resp else "n"))))
+        return resp
     while True:
         ans = raw_input(prompt)
         if not ans:
@@ -101,7 +104,7 @@ def prompt_samples():
     # full list of samples
     print("Sample\t\tName")
     for smp in Sample.select():
-        print("%i\t\t%s"%(smp.sample_id, smp.name))
+        print("%i\t\t%s"%(smp.id, smp.name))
     # prompt
     while True:
         try:
@@ -116,17 +119,17 @@ def prompt_sample(sample):
     # full list of samples
     print("Sample\t\tName")
     for smp in Sample.select():
-        print("%i\t\t%s"%(smp.sample_id, smp.name))
+        print("%i\t\t%s"%(smp.id, smp.name))
     # prompt
     while True:
         try:
             ans = int(raw_input("Sample id [None]?"))
         except:
-            sample.source_sample_id = None
+            sample.source_sample = None
             return
-        smp_db = Sample.get_or_none(Sample.sample_id == ans)
+        smp_db = Sample.get_or_none(Sample.id == ans)
         if smp_db is not None:
-            sample.source_sample_id = smp_db.sample_id
+            sample.source_sample = smp_db
         else:
             continue 
 
@@ -137,64 +140,40 @@ def prompt_dataset(sample):
     # full list of datasets
     print("Dataset\t\tName")
     for ds in Dataset.select():
-        print("%i\t\t%s"%(ds.dataset_id, ds.name))
+        print("%i\t\t%s"%(ds.id, ds.name))
     # datasets whose name contain the sample name
     suggestions = Dataset.select().where(Dataset.name.contains(sample.name))
     if suggestions.count() > 0:
         print("Suggestions:")
         print("Dataset\t\tName")
-        suggested_datasets = check.values(Dataset.dataset_id,Dataset.name)
+        suggested_datasets = check.values(Dataset.id,Dataset.name)
         for ds in suggested_datasets:
-            print("%i\t\t%s"%(ds.dataset_id, ds.name))
+            print("%i\t\t%s"%(ds.id, ds.name))
     # prompt
     while True:
         try:
             ans = int(raw_input("Dataset id [None]?"))
         except:
-            sample.source_dataset_id = None
+            sample.source_dataset = None
             return
-        dset_db = Dataset.get_or_none(Dataset.dataset_idSample == ans)
+        dset_db = Dataset.get_or_none(Dataset.id == ans)
         if dset_db is not None:
-            sample.source_dataset_id = ans
+            sample.source_dataset = smp_db
         else:
             continue
 
 @contextmanager
-def confirm_transaction(db, prompt):
-    with db.manual_commit():
-        db.begin()
-        try:
-            yield
-        except Exception as ex:
-            db.rollback()
-            raise ex
-        else:
-            try:
-                if confirm(prompt=prompt, resp=True):
-                    db.commit()
-                else:
-                    db.rollback()
-            except Exception as ex:
-                db.rollback()
-                raise ex
+def confirm_transaction(db, prompt, assumeDefault=False):
+    with db.atomic() as txn:
+        yield
+        answer = confirm(prompt=prompt, resp=True, assumeDefault=assumeDefault)
+        if not answer:
+            txn.rollback()
 
 @contextmanager
-def maybe_dryrun(db, dryRun=False, dryMessage=None):
-    with db.manual_commit():
-        db.begin()
-        try:
-            yield
-        except Exception as ex:
-            db.rollback()
-            raise ex
-        else:
-            try:
-                if not dryRun:
-                    db.commit()
-                else:
-                    if dryMessage:
-                        print(dryMessage)
-                    db.rollback()
-            except Exception as ex:
-                db.rollback()
-                raise ex
+def maybe_dryrun(db, dryMessage=None, dryRun=False):
+    with db.atomic() as txn:
+        yield
+        if dryRun:
+            print(dryMessage)
+            txn.rollback()

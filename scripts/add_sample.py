@@ -6,9 +6,9 @@ import glob
 from pwd import getpwuid
 from datetime import datetime
 from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, File, SAMADhiDB
-from cp3_llbb.SAMADhi.utils import parsePath, userFromPath, timeFromPath, confirm, prompt_dataset, prompt_sample
+from cp3_llbb.SAMADhi.utils import parsePath, userFromPath, timeFromPath, confirm_transaction, prompt_dataset, prompt_sample
 
-def get_file_data_(f_):
+def get_file_data(f_):
     import ROOT
 
     f = ROOT.TFile.Open(f_)
@@ -46,9 +46,9 @@ def main(args=None):
             help="version of the code used to process that sample (e.g. git tag or commit)")
     parser.add_argument("--comment", default="",
             help="comment about the dataset")
-    parser.add_argument("--source_dataset", type=int, dest="source_dataset_id",
+    parser.add_argument("--source_dataset", type=int,
             help="reference to the source dataset")
-    parser.add_argument("--source_sample", type=int, dest="source_sample_id",
+    parser.add_argument("--source_sample", type=int,
             help="reference to the source sample, if any")
     parser.add_argument("-a", "--author",
             help="author of the result. If not specified, is taken from the path.")
@@ -58,6 +58,8 @@ def main(args=None):
             help="result timestamp. If set to \"path\", timestamp will be taken from the path. Otherwise, it must be formated like YYYY-MM-DD HH:MM:SS. Default is current time.")
     parser.add_argument("--database", default="~/.samadhi",
             help="JSON Config file with database connection settings and credentials")
+    parser.add_argument("-y", "--continue", dest="assumeDefault", action="store_true",
+            help="Assume defaults instead of prompt")
     parser.add_argument("type", choices=["PAT", "SKIM", "RDS", "NTUPLES", "HISTOS"], help="Sample type")
     parser.add_argument("path", help="location of the sample on disk", type=parsePath)
     args = parser.parse_args(args=args)
@@ -76,7 +78,7 @@ def main(args=None):
 
     with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.name)
-        with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing)):
+        with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
             sample, created = Sample.get_or_create(
                     name=args.name,
                     path=args.path,
@@ -88,15 +90,15 @@ def main(args=None):
                     luminosity=args.lumi,
                     code_version=args.code_version,
                     user_comment=args.comment,
-                    source_dataset=( Dataset.get_or_none(Dataset.id == args.source_dataset_id) if args.source_dataset_id is not None else None ),
-                    source_sample=( Sample.get_or_none(Dataset.id == args.source_sample_id) if args.source_sample_id is not None else None ),
+                    source_dataset=( Dataset.get_or_none(Dataset.id == args.source_dataset) if args.source_dataset is not None else None ),
+                    source_sample=( Sample.get_or_none(Sample.id == args.source_sample) if args.source_sample is not None else None ),
                     author=args.author,
                     creation_time=args.time,
                     )
 
-            if sample.source_dataset is None:
+            if sample.source_dataset is None and not args.assumeDefault:
                 prompt_dataset(sample) ## TODO: check existence
-            if sample.source_sample is None:
+            if sample.source_sample is None and not args.assumeDefault:
                 prompt_sample(sample) ## TODO: check existence
 
             if sample.nevents_processed is None:
@@ -107,22 +109,23 @@ def main(args=None):
                 else:
                     print("Warning: Number of processed events not given, and no way to guess it.")
 
-            if opts.files is not None:
-                files = list(opts.files.split(","))
+            if args.files is not None:
+                files = list(args.files.split(","))
             else:
                 files = glob.glob(os.path.join(sample.path, "*.root"))
             if not files:
                 print("Warning: no root files found in {0!r}".format(sample.path))
             for fName in files:
-                weight_sum, entries = get_file_data(f)
-                sample.files.append(File.create(
+                weight_sum, entries = get_file_data(fName)
+                File.create(
                     lfn=fName, pfn=fName,
                     event_weight_sum=weight_sum,
-                    nevents=entries
-                    )) ## FIXME extras_event_weight_sum
+                    nevents=(entries if entries is not None else 0),
+                    sample=sample
+                    ) ## FIXME extras_event_weight_sum
 
-            if existing.luminosity is None:
-                sample.luminosity = sample.getLuminosity() ## TODO to be implemented?
+            if sample.luminosity is None:
+                sample.luminosity = sample.getLuminosity()
 
             print(sample)
 

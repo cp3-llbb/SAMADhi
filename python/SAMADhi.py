@@ -212,7 +212,7 @@ class Sample(BaseModel):
                     source_sample=("  source sample: {0.id:d}\n".format(self.source_sample) if self.source_sample is not None else ""),
                     files=("{0:d} files: \n    - {1}".format(self.files.count(),
                             "\n    - ".join(
-                                (("{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files)
+                                (("{0.lfn} ({nevents} entries)".format(fl, nevents="{0:d}".format(fl.nevents) if fl.nevents is not None else "no") for fl in self.files)
                                     if self.files.count() < 6 else
                                  (["{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files[:3]]
                                  +["...", "{0.lfn} ({0.nevents:d} entries)".format(self.files[-1])])
