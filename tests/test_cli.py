@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 import os.path
 import pytest
 from pytest_console_scripts import script_runner
@@ -31,7 +32,7 @@ def test_add_sample(script_runner, tmptestdbcopy):
 
 def test_add_sample_noconfirm(script_runner, tmptestdbcopy):
     import io
-    checkSuccessOutLines(script_runner.run("add_sample.py", tmptestdbcopy, "NTUPLES", "--name=test_cli_addSample_2", "--processed=-1", "--nevents=10", "--norm=2.", "--weight-sum=12.", "--lumi=0.3", "--code_version=0.1.0", "--comment='testing add_sample.py'", "--author=pytest", "/tmp", stdin=io.StringIO(u"\n\nn\n"))) ## no source sample or dataset, no insert
+    checkSuccessOutLines(script_runner.run("add_sample.py", tmptestdbcopy, "NTUPLES", "--name=test_cli_addSample_2", "--processed=-1", "--nevents=10", "--norm=2.", "--weight-sum=12.", "--lumi=0.3", "--code_version=0.1.0", "--comment='testing add_sample.py'", "--author=pytest", "/tmp", stdin=io.StringIO("\n\nn\n"))) ## no source sample or dataset, no insert
     checkSuccessOutLines(script_runner.run("search_SAMADhi.py", tmptestdbcopy, "sample", "--name=test_cli_addSample_2"), nOut=0)
 
 def test_add_result(script_runner, tmptestdbcopy):

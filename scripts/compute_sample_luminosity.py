@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import unicode_literals, print_function
 """ Simple script to compute the luminosity of a set of samples """
 
 from itertools import chain

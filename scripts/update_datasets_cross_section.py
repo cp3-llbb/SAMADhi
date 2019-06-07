@@ -1,10 +1,10 @@
 #!/usr/bin/env python
+from __future__ import unicode_literals, print_function
 """ Simple script to compute the luminosity of a set of samples """
 
 import subprocess
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, SAMADhiDB
-from storm.locals import Desc
 
 def replaceWildcards(arg):
     return arg.replace("*", "%").replace("?", "_")

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 """ Setuptools-based setup module for SAMADhi
 
 derived from the pypa example, see https://github.com/pypa/sampleproject
@@ -16,7 +17,7 @@ class build_py_with_init(build_py):
                 pkgDir = os.path.join(self.build_lib, pkgNm)
                 self.mkpath(pkgDir)
                 with open(os.path.join(pkgDir, "__init__.py"), "w") as initf:
-                    initf.write(u"")
+                    initf.write("")
         build_py.run(self)
 
 # Get the long description from the relevant file

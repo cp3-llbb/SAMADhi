@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import unicode_literals, print_function
 """ Script to check samples for deletion """
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB

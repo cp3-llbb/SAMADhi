@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 import re
 import json
 import subprocess
@@ -78,26 +79,26 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
 
     metadata = query_das(dataset)
     metadata.update({
-        u"process": unicode(process),
-        u"xsection": xsection, 
-        u"energy": energy,
-        u"comment": unicode(comment)
+        "process": process,
+        "xsection": xsection,
+        "energy": energy,
+        "comment": comment
     })
 
     # definition of the conversion key -> column
     column_conversion = {
-            "process": u'process', 
-            "user_comment": u'comment',
-            "energy": u'energy',
-            "nevents": u'nevents',
-            "cmssw_release": u'release',
-            "dsize": u'file_size',
-            "globaltag": u'globalTag',
-            "xsection": u'xsection'
+            "process": 'process',
+            "user_comment": 'comment',
+            "energy": 'energy',
+            "nevents": 'nevents',
+            "cmssw_release": 'release',
+            "dsize": 'file_size',
+            "globaltag": 'globalTag',
+            "xsection": 'xsection'
             }
     # columns of the dataset to create (if needed)
     dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
-    dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata[u"creation_time"])
+    dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"])
 
     with SAMADhiDB() as db:
         existing = Dataset.get_or_none(Dataset.name == metadata["name"])

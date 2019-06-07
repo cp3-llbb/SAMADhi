@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import unicode_literals, print_function
 import cp3_llbb.SAMADhi.SAMADhi as SAMADhi
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB
 from cp3_llbb.SAMADhi.utils import replaceWildcards

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 import os, os.path
 import pytest
 from pytest_console_scripts import script_runner

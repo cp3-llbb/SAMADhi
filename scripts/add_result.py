@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import unicode_literals, print_function
 """ Add a result to the database """
 from datetime import datetime
 import argparse

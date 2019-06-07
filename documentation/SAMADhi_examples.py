@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 from cp3_llbb.SAMADhi.SAMADhi import SAMADhiDB, Sample
 
 # Example method to generate a dictionary relating PAT name and luminosity
