@@ -111,9 +111,8 @@ def main(args=None):
         update_brilcalc(local=options.local, username=options.username)
     else:
         with SAMADhiDB(credentials=args.database) as db:
-            for sample in chain(
-                    (Sample.get_by_id(id_) for id_ in options.ids),
-                    (Sample.get_or_none(Sample.name % replaceWildcards(name, db=db)) for name in options.names)):
+            for sample in chain((Sample.get_by_id(id_) for id_ in options.ids),
+                    chain.from_iterable(Sample.select().where(Sample.name % replaceWildcards(name, db=db)) for name in options.names))
                 compute_luminosity(sample, normtag=options.normtag, local=options.local, username=options.username)
 
 if __name__ == '__main__':
