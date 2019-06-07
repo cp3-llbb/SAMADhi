@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 """ Setuptools-based setup module for SAMADhi
 
 derived from the pypa example, see https://github.com/pypa/sampleproject
@@ -17,7 +16,7 @@ class build_py_with_init(build_py):
                 pkgDir = os.path.join(self.build_lib, pkgNm)
                 self.mkpath(pkgDir)
                 with open(os.path.join(pkgDir, "__init__.py"), "w") as initf:
-                    initf.write("")
+                    initf.write(u"")
         build_py.run(self)
 
 # Get the long description from the relevant file
@@ -56,7 +55,7 @@ setup(
     ],
     keywords='database',
 
-    install_requires=["peewee", "pymysql"],
+    install_requires=["peewee", "pymysql", "future"],
     tests_require=["pytest", "pytest-console-scripts"],
 
     packages=["cp3_llbb.SAMADhi"],

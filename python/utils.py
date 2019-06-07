@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function
+from builtins import input
 from contextlib import contextmanager
 
 def parsePath(pth):
@@ -86,7 +87,7 @@ def confirm(prompt=None, resp=False, assumeDefault=False):
         print("".join((prompt, ("y" if resp else "n"))))
         return resp
     while True:
-        ans = raw_input(prompt)
+        ans = input(prompt)
         if not ans:
             return resp
         if ans not in ['y', 'Y', 'n', 'N']:
@@ -109,7 +110,7 @@ def prompt_samples():
     # prompt
     while True:
         try:
-            return [ int(x) for x in raw_input("Comma-separated list of sample id [None]?").split(",") ]
+            return [ int(x) for x in input("Comma-separated list of sample id [None]?").split(",") ]
         except:
             continue
 
@@ -124,7 +125,7 @@ def prompt_sample(sample):
     # prompt
     while True:
         try:
-            ans = int(raw_input("Sample id [None]?"))
+            ans = int(input("Sample id [None]?"))
         except:
             sample.source_sample = None
             return
@@ -153,7 +154,7 @@ def prompt_dataset(sample):
     # prompt
     while True:
         try:
-            ans = int(raw_input("Dataset id [None]?"))
+            ans = int(input("Dataset id [None]?"))
         except:
             sample.source_dataset = None
             return
