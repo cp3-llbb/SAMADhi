@@ -9,9 +9,9 @@ from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, File, SAMADhiDB
 from cp3_llbb.SAMADhi.utils import parsePath, userFromPath, timeFromPath, confirm_transaction, prompt_dataset, prompt_sample
 
 def get_file_data(f_):
-    import ROOT
+    from cppyy import gbl
 
-    f = ROOT.TFile.Open(f_)
+    f = gbl.TFile.Open(f_)
     if not f:
         return (None, None)
 

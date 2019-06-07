@@ -11,11 +11,11 @@ Example:
 __all__ = ["loadCredentials", "SAMADhiDB"] ## models added below
 _models = [] ## list for binding a database
 
+import warnings
+warnings.filterwarnings("ignore", module="peewee", category=UserWarning, message="Unable to determine MySQL version: .*")
 import os
 if os.getenv("CMSSW_VERSION") is not None:
     """ Silence some warnings if inside CMSSW """
-    import warnings
-    warnings.filterwarnings("ignore", module="peewee", category=UserWarning, message="Unable to determine MySQL version: .*")
     for warnMod in ("pysqlite2.dbapi2", "peewee"):
         warnings.filterwarnings("ignore", module=warnMod, category=DeprecationWarning, message="Converters and adapters are deprecated. Please use only supported SQLite types. Any type mapping should happen in layer above this module.")
 
