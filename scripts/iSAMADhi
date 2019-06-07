@@ -15,7 +15,8 @@ def main(args=None):
     with SAMADhiDB(credentials=args.database) as db:
         IPython.embed(banner1=(
             "Interactively exploring SAMADhi database {database}\n"
-            "Available models: {models}"
+            "Available models: {models}\n"
+            "WARNING: by default your changes *will* be committed to the database"
             ).format(
                 database="{0}({1}){2}".format(db.__class__.__name__, db.database,
                     (" at {0}".format(db.connect_params["host"]) if "host" in db.connect_params else "")),

@@ -5,9 +5,7 @@ from __future__ import unicode_literals, print_function
 import subprocess
 import argparse
 from cp3_llbb.SAMADhi.SAMADhi import Dataset, Sample, SAMADhiDB
-
-def replaceWildcards(arg):
-    return arg.replace("*", "%").replace("?", "_")
+from cp3_llbb.SAMADhi.utils import replaceWildcards, maybe_dryrun
 
 def main(args=None):
     parser = argparse.ArgumentParser(description='Update cross-sections of datasets.')
@@ -29,7 +27,7 @@ def main(args=None):
                     if sample.source_dataset.datatype == "data":
                         continue
                     # Consider a cross-section of one as a non-updated value
-                    if sample.source_dataset.xsection == 1:
+                    if sample.source_dataset.xsection == 1 or sample.source_dataset.xsection is None:
                         # Try to find a similar sample in the database, with the same center of mass energy
                         print("Updating cross-section of {}".format(sample.source_dataset.process))
                         if args.force:

@@ -63,3 +63,7 @@ def test_import_dataset(script_runner, tmptestdbcopy):
     dasName = "/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIAutumn18NanoAODv4-Nano14Dec2018_102X_upgrade2018_realistic_v16-v1/NANOAODSIM"
     checkSuccessOutLines(script_runner.run("das_import.py", "--continue", tmptestdbcopy, "--energy=13", "--xsection=6225.42", "--process=DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXF-pythia8", dasName))
     checkSuccessOutLines(script_runner.run("search_SAMADhi.py", tmptestdbcopy, "dataset", "--name={0}".format(dasName)), nOut=1)
+
+@needGridProxy
+def test_import_dataset_update_xsec(script_runner, tmptestdbcopy):
+    checkSuccessOutLines(script_runner.run("update_datasets_cross_section.py", tmptestdbcopy, "--write", "--force=1", "test_modelRels_mc1"))
