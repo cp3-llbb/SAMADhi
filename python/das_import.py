@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function
+import datetime
 import re
 import json
 import subprocess
@@ -61,10 +62,13 @@ def query_das(dataset):
 
     return metadata
 
-def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment="", prompt=False):
+def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment="", assumeDefault=False, credentials=None):
     """
     Do a DAS request for the given dataset and insert it into SAMAdhi
     """
+
+    if subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0:
+        raise RuntimeError("No valid proxy found (with at least 5 minutes left)")
 
     # Guess default sane values for unspecifed parameters
     if not process:
@@ -100,9 +104,9 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
     dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
     dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"])
 
-    with SAMADhiDB() as db:
+    with SAMADhiDB(credentials) as db:
         existing = Dataset.get_or_none(Dataset.name == metadata["name"])
-        with confirm_transaction(db, "Insert into the database?" if existing is None else "Update this dataset?"):
+        with confirm_transaction(db, "Insert into the database?" if existing is None else "Update this dataset?", assumeDefault=assumeDefault):
             dataset, created = Dataset.get_or_create(
                     name=metadata["name"], datatype=metadata["datatype"],
                     defaults=dset_columns

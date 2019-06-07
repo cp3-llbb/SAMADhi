@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, print_function
 import os.path
+import subprocess
 import pytest
 from pytest_console_scripts import script_runner
 
@@ -16,6 +17,7 @@ try:
 except ImportError:
     pass
 needROOT = pytest.mark.skipif(not _hasROOT, reason="Needs ROOT")
+needGridProxy = pytest.mark.skipif(subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0, reason="Needs a valid grid proxy")
 
 @pytest.fixture
 def tmptestdbcopy(tmpdir):
@@ -55,3 +57,9 @@ def test_add_sample_files(script_runner, tmptestdbcopy):
 def test_add_result(script_runner, tmptestdbcopy):
     checkSuccessOutLines(script_runner.run("add_result.py", "--continue", tmptestdbcopy, "--analysis=1", "--sample=4,5,6,7,8", "--description='testing add_result.py'", "--author=pytest", "--elog=TODO", "/tmp", stdin=b"n"))
     checkSuccessOutLines(script_runner.run("search_SAMADhi.py", tmptestdbcopy, "result", "--path=/tmp"), nOut=1)
+
+@needGridProxy
+def test_import_dataset(script_runner, tmptestdbcopy):
+    dasName = "/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIAutumn18NanoAODv4-Nano14Dec2018_102X_upgrade2018_realistic_v16-v1/NANOAODSIM"
+    checkSuccessOutLines(script_runner.run("das_import.py", "--continue", tmptestdbcopy, "--energy=13", "--xsection=6225.42", "--process=DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXF-pythia8", dasName))
+    checkSuccessOutLines(script_runner.run("search_SAMADhi.py", tmptestdbcopy, "dataset", "--name={0}".format(dasName)), nOut=1)
