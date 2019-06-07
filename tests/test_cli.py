@@ -3,7 +3,11 @@ import os.path
 import pytest
 from pytest_console_scripts import script_runner
 
-testDBArg = "--database={0}".format(os.path.join(os.path.dirname(__file__), "data", "params.json"))
+testDBCred = os.path.join(os.path.dirname(__file__), "data", "params.json")
+import os,stat
+if stat.S_IMODE(os.stat(testDBCred).st_mode) != stat.S_IRUSR:
+    os.chmod(testDBCred, stat.S_IRUSR) ## set 400
+testDBArg = "--database={0}".format(testDBCred)
 
 _hasROOT = False
 try:

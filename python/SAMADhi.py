@@ -29,7 +29,7 @@ def loadCredentials(path="~/.samadhi"):
         raise IOError('Credentials file %r not found.' % credentials)
     # Check permission
     mode = stat.S_IMODE(os.stat(credentials).st_mode)
-    if mode != int('400', 8):
+    if mode != stat.S_IRUSR:
         raise IOError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
 
     with open(credentials, "r") as f:
