@@ -7,7 +7,7 @@ Samādhi in Hinduism, Buddhism, Jainism, Sikhism and yogic schools is a higher l
 
 This project is to develop a database to keep track of samples used by our group for CMS data analysis, and of (groups of) analysis results.
 
-A python interface is provided via the STORM package.
+A python interface is provided via the [peewee](http://docs.peewee-orm.com/en/latest/) package.
 
 Setup inside a CMSSW project area:
 ```
@@ -21,13 +21,13 @@ source installdeps_cmssw.sh   ## only on first use
 scram b
 ```
 
-Standalone setup on ingrid:
+For standalone use the python interface can be installed with setuptools or pip,
+e.g. in a [virtual environment](https://packaging.python.org/tutorials/installing-packages/#creating-virtual-environments) with
+```bash
+python -m venv samadhi_env
+source samadhi_env/bin/activate
+pip install git+https://github.com/cp3-llbb/SAMADhi.git
 ```
-source setup_standalone.sh    ## in every new shell
-```
-this will create an install tree and symlink if needed, and otherwise only set some environment variables.
-The python installation used can be customized with the `--python` option (e.g. `--python=/nfs/soft/python/python-2.7.5-sl6_amd64_gcc44/bin/python` on `ingrid-ui2`),
-and the install tree location can be set with the `--install` option.
 
 
 To start the xataface interface in a docker image:

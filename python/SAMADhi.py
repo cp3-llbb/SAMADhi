@@ -301,7 +301,7 @@ __all__ += _models
 from contextlib import contextmanager
 @contextmanager
 def SAMADhiDB(credentials='~/.samadhi'):
-    """create a database object and returns the db store from STORM"""
+    """create a database object and returns the db handle from peewee"""
     cred = loadCredentials(path=credentials)
     if cred.get("test", False):
         import os.path
