@@ -5,4 +5,5 @@ python:
     - "2.7"
     - "3.6"
     - "3.7"
-script: python --version
+install: pip install tox-travis
+script: tox
