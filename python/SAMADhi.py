@@ -170,7 +170,6 @@ class Sample(BaseModel):
 
     def removeFiles(self):
         File.delete().where(File.sample.id == self.id)
-        self.files.clear()
     def getLuminosity(self):
         """Computes the sample (effective) luminosity"""
         if self.luminosity is not None:

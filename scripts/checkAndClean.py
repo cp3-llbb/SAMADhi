@@ -56,15 +56,27 @@ def main(args=None)
             with maybe_dryrun(db, dryRun=args.dry_run):
                 if opts.cleanupMissing:
                     for smp in smp_empty_delete:
-                        smp.removeFiles()
-                        smp.delete_instance()
+                        sample = Sample.get_or_none((Sample.id == smp["id"]) & (Sample.name == smp["name"]))
+                        if sample is None:
+                            print("Could not find sample #{id} {name}".format(smp["id"], smp["name"]))
+                        else:
+                            smp.removeFiles()
+                            smp.delete_instance()
                 if opts.cleanupUnreachable:
                     for smp in smp_delete:
-                        smp.removeFiles()
-                        smp.delete_instance()
+                        sample = Sample.get_or_none((Sample.id == smp["id"]) & (Sample.name == smp["name"]))
+                        if sample is None:
+                            print("Could not find sample #{id} {name}".format(smp["id"], smp["name"]))
+                        else:
+                            sample.removeFiles()
+                            sample.delete_instance()
                 if args.cleanupDatasets:
                     for ids in ds_orphan:
-                        ids.delete_instance()
+                        dataset = Dataset.get_or_none((Dataset.id == ids["id"]) & (Dataset.name == ids["name"]))
+                        if dataset is None:
+                            print("Could not find dataset #{id} {name}".format(ids["id"], ids["name"]))
+                        else:
+                            dataset.delete_instance()
 
 if __name__ == "__main__":
     main()
