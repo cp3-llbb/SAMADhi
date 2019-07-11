@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function
+import distutils.spawn
 import os.path
 import subprocess
 import pytest
@@ -17,7 +18,7 @@ try:
 except ImportError:
     pass
 needROOT = pytest.mark.skipif(not _hasROOT, reason="Needs ROOT")
-needGridProxy = pytest.mark.skipif(subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0, reason="Needs a valid grid proxy")
+needGridProxy = pytest.mark.skipif(distutils.spawn.find_executable("voms-proxy-info") and ( subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0 ), reason="Needs a valid grid proxy")
 
 @pytest.fixture
 def tmptestdbcopy(tmpdir):
