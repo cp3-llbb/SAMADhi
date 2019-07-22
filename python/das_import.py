@@ -102,7 +102,7 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
             }
     # columns of the dataset to create (if needed)
     dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
-    dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"])
+    dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"]) if "creation_time" in metadata else None
 
     with SAMADhiDB(credentials) as db:
         existing = Dataset.get_or_none(Dataset.name == metadata["name"])

@@ -80,22 +80,19 @@ def main(args=None):
     with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.name)
         with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
-            sample, created = Sample.get_or_create(
-                    name=args.name,
-                    path=args.path,
-                    sampletype=args.type,
-                    nevents_processed=args.nevents_processed,
-                    nevents=args.nevents,
-                    normalization=args.norm,
-                    event_weight_sum=args.weight_sum,
-                    luminosity=args.lumi,
-                    code_version=args.code_version,
-                    user_comment=args.comment,
-                    source_dataset=( Dataset.get_or_none(Dataset.id == args.source_dataset) if args.source_dataset is not None else None ),
-                    source_sample=( Sample.get_or_none(Sample.id == args.source_sample) if args.source_sample is not None else None ),
-                    author=args.author,
-                    creation_time=args.time,
-                    )
+            sample, created = Sample.get_or_create(name=args.name, path=args.path)
+            sample.sampletype = args.type
+            sample.nevents_processed = args.nevents_processed
+            sample.nevents = args.nevents
+            sample.normalization = args.norm
+            sample.event_weight_sum = args.weight_sum
+            sample.luminosity = args.lumi
+            sample.code_version = args.code_version
+            sample.user_comment = args.comment
+            sample.source_dataset = ( Dataset.get_or_none(Dataset.id  =  =  args.source_dataset) if args.source_dataset is not None else None )
+            sample.source_sample = ( Sample.get_or_none(Sample.id  =  =  args.source_sample) if args.source_sample is not None else None )
+            sample.author = args.author
+            sample.creation_time = args.time
 
             if sample.source_dataset is None and not args.assumeDefault:
                 prompt_dataset(sample) ## TODO: check existence
@@ -127,6 +124,7 @@ def main(args=None):
 
             if sample.luminosity is None:
                 sample.luminosity = sample.getLuminosity()
+            sample.save()
 
             print(sample)
 

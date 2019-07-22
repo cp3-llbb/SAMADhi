@@ -169,7 +169,7 @@ class Sample(BaseModel):
         return super(Sample, cls).create(**kwargs)
 
     def removeFiles(self):
-        File.delete().where(File.sample.id == self.id)
+        File.delete().where(File.sample == self).execute()
     def getLuminosity(self):
         """Computes the sample (effective) luminosity"""
         if self.luminosity is not None:
