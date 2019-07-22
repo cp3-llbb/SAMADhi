@@ -80,7 +80,11 @@ def main(args=None):
     with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.name)
         with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
-            sample, created = Sample.get_or_create(name=args.name, path=args.path)
+            sample, created = Sample.get_or_create(name=args.name, path=args.path,
+                    defaults={
+                        "sampletype" : args.type,
+                        "nevents_processed" : args.nevents_processed
+                        })
             sample.sampletype = args.type
             sample.nevents_processed = args.nevents_processed
             sample.nevents = args.nevents
