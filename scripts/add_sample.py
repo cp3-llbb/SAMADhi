@@ -89,8 +89,8 @@ def main(args=None):
             sample.luminosity = args.lumi
             sample.code_version = args.code_version
             sample.user_comment = args.comment
-            sample.source_dataset = ( Dataset.get_or_none(Dataset.id  =  =  args.source_dataset) if args.source_dataset is not None else None )
-            sample.source_sample = ( Sample.get_or_none(Sample.id  =  =  args.source_sample) if args.source_sample is not None else None )
+            sample.source_dataset = ( Dataset.get_or_none(Dataset.id  ==  args.source_dataset) if args.source_dataset is not None else None )
+            sample.source_sample = ( Sample.get_or_none(Sample.id  ==  args.source_sample) if args.source_sample is not None else None )
             sample.author = args.author
             sample.creation_time = args.time
 
