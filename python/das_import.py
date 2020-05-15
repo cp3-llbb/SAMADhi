@@ -88,6 +88,8 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
         "energy": energy,
         "comment": comment
     })
+    if not all(ky in metadata for ky in ("name", "datatype")):
+        raise RuntimeError("Could not find all required keys (name and datatype) in {0!s}".format(metadata))
 
     # definition of the conversion key -> column
     column_conversion = {
