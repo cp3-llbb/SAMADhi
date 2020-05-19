@@ -63,4 +63,10 @@ setup(
     cmdclass={"build_py": build_py_with_init},
 
     scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
+    entry_points={
+        "console_scripts": [
+            "das_import=cp3_llbb.SAMADhi.das_import:cmdLine",
+            "iSAMADhi=cp3_llbb.SAMADhi.SAMADhi:interactive"
+            ]
+        },
 )

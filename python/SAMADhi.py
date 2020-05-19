@@ -313,3 +313,24 @@ def SAMADhiDB(credentials='~/.samadhi'):
         db = MySQLDatabase(cred["database"], user=cred["login"], password=cred["password"], host=cred["hostname"])
     with db.bind_ctx(_models):
         yield db
+
+def interactive(args=None):
+    """ Explore (and manipulate) the SAMADhi database in an IPython shell """
+    import argparse
+    parser = argparse.ArgumentParser(description="Explore (and manipulate) the SAMADhi database in an IPython shell")
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
+    args = parser.parse_args(args=args)
+
+    import IPython
+    for md in _models:
+        locals()[md.__name__] = md
+    with SAMADhiDB(credentials=args.database) as db:
+        IPython.embed(banner1=(
+            "Interactively exploring SAMADhi database {database}\n"
+            "Available models: {models}\n"
+            "WARNING: by default your changes *will* be committed to the database"
+            ).format(
+                database="{0}({1}){2}".format(db.__class__.__name__, db.database,
+                    (" at {0}".format(db.connect_params["host"]) if "host" in db.connect_params else "")),
+                models=", ".join(md.__name__ for md in _models)
+                ))
