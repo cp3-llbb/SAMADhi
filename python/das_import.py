@@ -12,7 +12,7 @@ def do_das_query(query):
     Execute das_client for the specified query, and return parsed JSON output
     """
 
-    args = ['dasgoclient', '-json', '-format', 'json', '--query', query]
+    args = ['dasgoclient', '-json', '-query', query]
     result = subprocess.check_output(args)
 
     return json.loads(result)
@@ -32,29 +32,23 @@ def query_das(dataset):
     release_results = do_das_query(release_query)
     config_results = do_das_query(config_query)
 
-    if 'nresults' not in summary_results:
-        raise Exception("Invalid DAS response")
-
-    if summary_results['nresults'] > 1:
-        raise Exception("Error: more than one result for DAS query:%d"%summary_results['nresults'])
-
     # Grab results from DAS
     metadata = {}
-    for d in metadata_results["data"][0]["dataset"]:
+    for d in next(entry for entry in metadata_results if "dbs3:dataset_info" in entry["das"]["services"])["dataset"]:
         for key, value in d.items():
             metadata[key] = value
-    for d in summary_results["data"][0]["summary"]:
+    for d in summary_results[0]["summary"]:
         for key, value in d.items():
             metadata[key] = value
 
     # Set release in global tag
     metadata.update({
-        'release': release_results["data"][0]["release"][0]["name"][0],
-        'globalTag': config_results["data"][0]["config"][0]["global_tag"]
+        'release': release_results[0]["release"][0]["name"][0],
+        'globalTag': config_results[0]["config"][0]["global_tag"]
     })
 
     # Last chance for the global tag
-    for d in config_results["data"]:
+    for d in config_results:
       if metadata['globalTag']=='UNKNOWN':
         metadata['globalTag']=d["config"][0]["global_tag"]
     if metadata['globalTag']=='UNKNOWN':
