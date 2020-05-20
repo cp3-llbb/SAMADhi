@@ -298,7 +298,7 @@ def checkAndClean(args=None):
 
     from .SAMADhi import SAMADhiDB
 
-    with redirectOut(args.output if not args.dry_run else "-"),
+    with redirectOut(args.output if not args.dry_run else "-"):
         # open the sample analysis report and classify bad samples
         samples_missing = arg_loadJSON(os.path.join(args.path, "SamplesAnalysisReport.json")).get("MissingDirSamples", [])
         smp_white, smp_nonWhite = splitWith(samples_missing,

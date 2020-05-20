@@ -16,7 +16,7 @@ def checkSuccessOutLines(ret, nOut=None, nErr=None):
 
 @needCredentials
 def test_search_sample(script_runner):
-    args = ["search_SAMADhi.py", "dataset", "--name=/DoubleMuon/Run2016*-03Feb2017-v*/MINIAOD"]
+    args = ["search_SAMADhi", "dataset", "--name=/DoubleMuon/Run2016*-03Feb2017-v*/MINIAOD"]
     if dbArg:
         args.append(dbArg)
     checkSuccessOutLines(script_runner.run(*args), nOut=5, nErr=0)
