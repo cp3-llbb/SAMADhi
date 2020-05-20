@@ -66,7 +66,7 @@ setup(
         "console_scripts": [
             "search_SAMADhi=cp3_llbb.SAMADhi.scripts:search",
             "iSAMADhi=cp3_llbb.SAMADhi.scripts:interactive",
-            "update_dataset_cross_section=cp3_llbb.SAMADhi.scripts:update_dataset_cross_section",
+            "update_datasets_cross_section=cp3_llbb.SAMADhi.scripts:update_datasets_cross_section",
             "add_sample=cp3_llbb.SAMADhi.scripts:add_sample",
             "add_result=cp3_llbb.SAMADhi.scripts:add_result",
             "checkAndClean=cp3_llbb.SAMADhi.scripts:checkAndClean",

@@ -71,7 +71,7 @@ def search(args=None):
             for res in results:
                 print(fmtStr.format(res))
 
-def update_dataset_cross_section(args=None):
+def update_datasets_cross_section(args=None):
     parser = argparse.ArgumentParser(description='Update cross-sections of datasets.')
     parser.add_argument('regex', type=str, help=('Regular expression used to filter *samples*.'
         'Only \'*\' and \'?\' wildcards are supported. Take note that filtering is applied to samples, and not to datasets.'))
