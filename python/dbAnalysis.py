@@ -8,9 +8,9 @@ from contextlib import contextmanager
 from datetime import datetime
 import numpy as np
 import re
-from cp3_llbb.SAMADhi.SAMADhi import Analysis, Dataset, Sample, Result, SAMADhiDB
-from cp3_llbb.SAMADhi.SAMADhi import File as SFile
-from cp3_llbb.SAMADhi.das_import import query_das
+from .SAMADhi import Analysis, Dataset, Sample, Result, SAMADhiDB
+from .SAMADhi import File as SFile
+from .das_import import query_das
 from playhouse.shortcuts import model_to_dict
 
 @contextmanager
@@ -460,6 +460,3 @@ def copyInconsistencies(basedir):
         # This should not happen, so print a warning.
         print("No DatabaseInconsistencies key in the previous json file ?!")
         return []
-
-if __name__ == "__main__":
-    main()

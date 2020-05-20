@@ -1,12 +1,10 @@
-#!/usr/bin/env python
 from __future__ import unicode_literals, print_function
-""" Simple script to compute the luminosity of a set of samples """
-
+"""
+Helper functions for computing the luminosity for a set of samples
+"""
 from itertools import chain
-import subprocess
 import argparse
-from cp3_llbb.SAMADhi.SAMADhi import Sample, SAMADhiDB
-from cp3_llbb.SAMADhi.utils import replaceWildcards
+import subprocess
 
 def parse_luminosity_csv(result):
     """ Parse the CSV file produced by brilcalc, and return the total recorded luminosity in /pb """
@@ -81,7 +79,7 @@ def update_brilcalc(local=False, username=None):
     ssh_cmds = ['ssh', '%s@lxplus.cern.ch' % username, cmd]
     subprocess.call(ssh_cmds)
 
-def main(args=None):
+def compute_sample_luminosity(args=None):
     parser = argparse.ArgumentParser(description='Compute luminosity of a set of samples')
     parser.add_argument('-i', '--id', type=int, nargs='+', dest='ids', help='IDs of the samples', metavar='ID')
     parser.add_argument('--name', type=str, nargs='+', dest='names', help='Names of the samples', metavar='NAME')
@@ -105,6 +103,9 @@ def main(args=None):
         import pwd, os
         options.username = pwd.getpwuid(os.getuid()).pw_name
 
+    from .SAMADhi import Sample, SAMADhiDB
+    from .utils import replaceWildcards
+
     if options.bootstrap:
         install_brilcalc(local=options.local, username=options.username)
     elif options.update:
@@ -114,6 +115,3 @@ def main(args=None):
             for sample in chain((Sample.get_by_id(id_) for id_ in options.ids),
                     chain.from_iterable(Sample.select().where(Sample.name % replaceWildcards(name, db=db)) for name in options.names))
                 compute_luminosity(sample, normtag=options.normtag, local=options.local, username=options.username)
-
-if __name__ == '__main__':
-    main()

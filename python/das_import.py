@@ -109,7 +109,7 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
                     )
             print(dataset)
 
-def cmdLine(args=None):
+def main(args=None):
     import argparse
     parser = argparse.ArgumentParser(description='Import CMS datasets into SAMADhi')
     parser.add_argument("dataset", help="CMS dataset")

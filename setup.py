@@ -62,11 +62,17 @@ setup(
     package_dir={"cp3_llbb.SAMADhi": "python"},
     cmdclass={"build_py": build_py_with_init},
 
-    scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
     entry_points={
         "console_scripts": [
-            "das_import=cp3_llbb.SAMADhi.das_import:cmdLine",
-            "iSAMADhi=cp3_llbb.SAMADhi.SAMADhi:interactive"
+            "search_SAMADhi=cp3_llbb.SAMADhi.scripts:search",
+            "iSAMADhi=cp3_llbb.SAMADhi.scripts:interactive",
+            "update_dataset_cross_section=cp3_llbb.SAMADhi.scripts:update_dataset_cross_section",
+            "add_sample=cp3_llbb.SAMADhi.scripts:add_sample",
+            "add_result=cp3_llbb.SAMADhi.scripts:add_result",
+            "checkAndClean=cp3_llbb.SAMADhi.scripts:checkAndClean",
+            "das_import=cp3_llbb.SAMADhi.das_import:main",
+            "compute_sample_luminosity=cp3_llbb.SAMADhi.luminosity:compute_sample_luminosity",
+            "SAMADhi_dbAnalysis=cp3_llbb.SAMADhi.dbAnalysis:main"
             ]
         },
 )
