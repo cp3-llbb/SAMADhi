@@ -10,8 +10,12 @@ def do_das_query(query):
     Execute das_client for the specified query, and return parsed JSON output
     """
 
-    args = ['dasgoclient', '-json', '-format', 'json', '--query', query]
-    result = subprocess.check_output(args)
+    args = ['dasgoclient', '--format', 'json', '--query', query]
+
+    try:
+        result = subprocess.check_output(args)
+    except subprocess.CalledProcessError as exc:
+        result = exc.output
 
     return json.loads(result)
 
@@ -46,7 +50,7 @@ def query_das(dataset):
     """
 
     summary_query  = "summary dataset=%s" % dataset
-    metadata_query  = "dataset=%s" % dataset
+    metadata_query  = "dataset dataset=%s" % dataset
     release_query  = "release dataset=%s" % dataset
     config_query  = "config dataset=%s system=dbs3" % dataset
 
