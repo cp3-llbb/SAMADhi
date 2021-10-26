@@ -71,6 +71,7 @@ setup(
             "add_result=cp3_llbb.SAMADhi.scripts:add_result",
             "checkAndClean=cp3_llbb.SAMADhi.scripts:checkAndClean",
             "das_import=cp3_llbb.SAMADhi.das_import:main",
+            "das_import_nanoAOD=cp3_llbb.SAMADhi.das_import:import_nanoAOD_sample",
             "compute_sample_luminosity=cp3_llbb.SAMADhi.luminosity:compute_sample_luminosity",
             "SAMADhi_dbAnalysis=cp3_llbb.SAMADhi.dbAnalysis:main"
             ]

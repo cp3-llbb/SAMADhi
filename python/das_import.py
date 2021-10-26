@@ -4,7 +4,6 @@ import re
 import json
 import subprocess
 
-from .SAMADhi import Dataset, SAMADhiDB
 from .utils import confirm_transaction
 
 def do_das_query(query):
@@ -100,6 +99,8 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
     dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
     dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"]) if "creation_time" in metadata else None
 
+    from .SAMADhi import SAMADhiDB, Dataset
+
     with SAMADhiDB(credentials) as db:
         existing = Dataset.get_or_none(Dataset.name == metadata["name"])
         with confirm_transaction(db, "Insert into the database?" if existing is None else "Update this dataset?", assumeDefault=assumeDefault):
@@ -108,6 +109,7 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
                     defaults=dset_columns
                     )
             print(dataset)
+            return dataset
 
 def main(args=None):
     import argparse
@@ -122,3 +124,113 @@ def main(args=None):
     args = parser.parse_args(args=args)
 
     import_cms_dataset(args.dataset, args.process, args.energy, args.xsection, args.comment, assumeDefault=args.assumeDefault, credentials=args.database)
+
+def get_nanoFile_data(fileName):
+    from cppyy import gbl
+    f = gbl.TFile.Open(fileName)
+    if not f:
+        print("Warning: could not open file {0}".format(fileName))
+        return None, None
+    eventsTree = f.Get("Events")
+    if ( not eventsTree ) or ( not isinstance(eventsTree, gbl.TTree) ):
+        print("No tree with name 'Events' found in {0}".format(fileName))
+        return None, None
+    entries = eventsTree.GetEntries()
+    runs = f.Get("Runs")
+    if ( not runs ) or ( not isinstance(runs, gbl.TTree) ):
+        print("No tree with name 'Runs' found in {0}".format(fileName))
+        return entries, None
+    sums = dict()
+    runs.GetEntry(0)
+    for lv in runs.GetListOfLeaves():
+        lvn = lv.GetName()
+        if lvn != "run":
+            if lv.GetLeafCount():
+                lvcn = lv.GetLeafCount().GetName()
+                if lvcn in sums:
+                    del sums[lvcn]
+                sums[lvn] = [ lv.GetValue(i) for i in range(lv.GetLeafCount().GetValueLong64()) ]
+            else:
+                sums[lvn] = lv.GetValue()
+    for entry in range(1, runs.GetEntries()):
+        runs.GetEntry(entry)
+        for cn, vals in sums.items():
+            if hasattr(vals, "__iter__"):
+                entryvals = getattr(runs, cn)
+                ## warning and workaround (these should be consistent for all NanoAODs in a sample)
+                if len(vals) != len(entryvals):
+                    logger.error("Runs tree: array of sums {0} has a different length in entry {1:d}: {2:d} (expected {3:d})".format(cn, entry, len(entryvals), len(vals)))
+                for i in range(min(len(vals), len(entryvals))):
+                    vals[i] += entryvals[i]
+            else:
+                sums[cn] += getattr(runs, cn)
+    return entries, sums
+
+def import_nanoAOD_sample(args=None):
+    import argparse
+    parser = argparse.ArgumentParser("Add a NanoAOD sample based on the DAS path and (optionally) cross-section")
+    parser.add_argument("path", help="DAS path")
+    parser.add_argument("--xsection", default=1., type=float, help="Cross-section value")
+    parser.add_argument("--energy", default=13., type=float, help="CoM energy, in TeV")
+    parser.add_argument("-p", "--process", help="Process name")
+    parser.add_argument("--comment", default="", help="User defined comment")
+    parser.add_argument("--datasetcomment", default="", help="User defined comment")
+    parser.add_argument("--store", required=True, help="root path of the local CMS storage (e.g. /storage/data/cms)")
+    parser.add_argument("--database", default="~/.samadhi", help="JSON Config file with database connection settings and credentials")
+    parser.add_argument("-y", "--continue", dest="assumeDefault", action="store_true", help="Insert or replace without prompt for confirmation")
+    args = parser.parse_args(args=args)
+
+    if subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0:
+        raise RuntimeError("No valid proxy found (with at least 5 minutes left)")
+
+    parent_results = do_das_query("parent dataset={0}".format(args.path))
+    if not ( len(parent_results) == 1 and len(parent_results[0]["parent"]) == 1):
+        raise RuntimeError("Parent dataset query result has an unexpected format")
+    parent_name = parent_results[0]["parent"][0]["name"]
+    source_dataset = import_cms_dataset(parent_name, process=args.process, energy=args.energy, xsection=args.xsection, comment=args.datasetcomment, assumeDefault=args.assumeDefault, credentials=args.database)
+
+    files_results = do_das_query("file dataset={0}".format(args.path))
+    nevents = sum(fr["file"][0]["nevents"] for fr in files_results)
+
+    from .SAMADhi import Sample, File, SAMADhiDB
+    import os.path
+
+    ## Next: the add_sample part
+    with SAMADhiDB(credentials=args.database) as db:
+        existing = Sample.get_or_none(Sample.name == args.path)
+        with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
+            sample, created = Sample.get_or_create(name=args.path, path=args.path,
+                    defaults={
+                        "sampletype" : "NTUPLES",
+                        "nevents_processed" : nevents
+                        })
+            sample.nevents = nevents
+            sample.normalization = 1.
+            sample.source_dataset = source_dataset
+            sample.source_sample = None
+
+            sample_weight_sum = 0
+            for fRes in files_results:
+                if len(fRes["file"]) != 1:
+                    raise RuntimeError("File result from DAS query has an unexpected format")
+                fileInfo = fRes["file"][0]
+                pfn = os.path.join(args.store, fileInfo["name"].lstrip(os.path.sep))
+                entries, weight_sums = get_nanoFile_data(pfn)
+                #print("For debug: nevents from DAS={0:d}, from file={1:d}".format(fileInfo["nevents"], entries))
+                event_weight_sum = weight_sums["genEventSumw"]
+                #print("All event weight sums: {0!r}".format(weight_sums))
+                sample_weight_sum += event_weight_sum
+                File.create(
+                    lfn=fileInfo["name"], pfn=pfn,
+                    event_weight_sum=event_weight_sum,
+                    nevents=(entries if entries is not None else 0),
+                    sample=sample
+                    ) ## FIXME extras_event_weight_sum
+
+            sample.event_weight_sum = sample_weight_sum
+            sample.luminosity = sample.getLuminosity() ## from xsection and sum of weights
+            sample.comment = args.comment
+            sample.author = "CMS"
+            sample.save()
+
+            print(sample)
