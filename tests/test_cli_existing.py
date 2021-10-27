@@ -1,9 +1,12 @@
+import logging
 import os
 import os.path
 
 import pytest
 
 from pytest_console_scripts import script_runner
+
+logger = logging.getLogger(__name__)
 
 needCredentials = pytest.mark.skipif(
     not os.path.isfile(
@@ -19,7 +22,7 @@ dbArg = (
 
 
 def checkSuccessOutLines(ret, nOut=None, nErr=None):
-    print(ret.stdout)
+    logger.info(ret.stdout)
     assert ret.success
     if nOut is not None:
         assert (nOut == 0 and len(ret.stdout.strip()) == 0) or len(

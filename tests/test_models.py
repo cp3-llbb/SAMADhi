@@ -1,4 +1,8 @@
+import logging
+
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
@@ -21,14 +25,14 @@ def test_createAnalysis(sqlitetestdb):
     ana = Analysis.create(
         cadiline="NP-20-001", contact="me <me@anywhere>", description="Evidence for new physics"
     )
-    print(str(ana))
+    logger.info(str(ana))
 
 
 def test_createDataset_minimal(sqlitetestdb):
     from cp3_llbb.SAMADhi.SAMADhi import Dataset
 
     dset = Dataset.create(name="test_createDataset_minimal dataset", datatype="mc")
-    print(str(dset))
+    logger.info(str(dset))
 
 
 def test_createDataset_fullNoRel(sqlitetestdb):
@@ -48,7 +52,7 @@ def test_createDataset_fullNoRel(sqlitetestdb):
         user_comment="Your favourite sample",
         creation_time=datetime.now() - timedelta(days=7),
     )
-    print(str(dset))
+    logger.info(str(dset))
 
 
 def test_createSample_minimal(sqlitetestdb):
@@ -60,7 +64,7 @@ def test_createSample_minimal(sqlitetestdb):
         sampletype="NTUPLES",
         nevents_processed=1000,
     )
-    print(str(smp))
+    logger.info(str(smp))
 
 
 def test_createSample_fullNoRel(sqlitetestdb):
@@ -80,7 +84,7 @@ def test_createSample_fullNoRel(sqlitetestdb):
         processed_lumi="almost all",
         user_comment="hello world",
     )
-    print(str(smp))
+    logger.info(str(smp))
 
 
 def test_createFile(sqlitetestdb):
@@ -101,14 +105,14 @@ def test_createFile(sqlitetestdb):
         event_weight_sum=1.0,
         sample=smp,
     )
-    print(str(f))
+    logger.info(str(f))
 
 
 def test_createResult_minimal(sqlitetestdb):
     from cp3_llbb.SAMADhi.SAMADhi import Result
 
     result = Result.create(path="/my/home/test_minimal_result.pdf")
-    print(str(result))
+    logger.info(str(result))
 
 
 def test_createResult_fullNoRel(sqlitetestdb):
@@ -120,7 +124,7 @@ def test_createResult_fullNoRel(sqlitetestdb):
         description="An interesting result",
         elog="TODO",
     )
-    print(str(result))
+    logger.info(str(result))
 
 
 def test_modelRels(sqlitetestdb):
@@ -165,8 +169,8 @@ def test_modelRels(sqlitetestdb):
         elog="TODO",
         path="/home/my/paper",
     )
-    print(str(ana))
-    print(str(datasets[-1]))
-    print(str(samples[-1]))
-    print(str(res1))
-    print(str(res2))
+    logger.info(str(ana))
+    logger.info(str(datasets[-1]))
+    logger.info(str(samples[-1]))
+    logger.info(str(res1))
+    logger.info(str(res2))

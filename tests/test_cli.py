@@ -1,4 +1,5 @@
 import distutils.spawn
+import logging
 import os
 import os.path
 import stat
@@ -7,6 +8,9 @@ import subprocess
 import pytest
 
 from pytest_console_scripts import script_runner
+
+logger = logging.getLogger(__name__)
+
 
 testDBCred = os.path.join(os.path.dirname(__file__), "data", "params.json")
 if stat.S_IMODE(os.stat(testDBCred).st_mode) != stat.S_IRUSR:
@@ -43,9 +47,9 @@ def tmptestdbcopy(tmpdir):
 
 
 def checkSuccessOutLines(ret, nOut=None, nErr=None):
-    print(ret.stdout)
+    logger.info(ret.stdout)
     if not ret.success:
-        print(ret.stderr)
+        logger.info(ret.stderr)
     assert ret.success
     if nOut is not None:
         assert (nOut == 0 and len(ret.stdout.strip()) == 0) or len(
