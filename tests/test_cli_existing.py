@@ -5,16 +5,31 @@ import pytest
 
 from pytest_console_scripts import script_runner
 
-needCredentials = pytest.mark.skipif(not os.path.isfile(os.path.expandvars(os.path.expanduser(os.getenv("SAMADHI_CREDENTIALS", "~/.samadhi")))), reason="Needs valid SAMADhi credentials")
-dbArg = ("--database={}".format(os.getenv("SAMADHI_CREDENTIALS")) if os.getenv("SAMADHI_CREDENTIALS") is not None else None)
+needCredentials = pytest.mark.skipif(
+    not os.path.isfile(
+        os.path.expandvars(os.path.expanduser(os.getenv("SAMADHI_CREDENTIALS", "~/.samadhi")))
+    ),
+    reason="Needs valid SAMADhi credentials",
+)
+dbArg = (
+    "--database={}".format(os.getenv("SAMADHI_CREDENTIALS"))
+    if os.getenv("SAMADHI_CREDENTIALS") is not None
+    else None
+)
+
 
 def checkSuccessOutLines(ret, nOut=None, nErr=None):
     print(ret.stdout)
     assert ret.success
     if nOut is not None:
-        assert ( nOut == 0 and len(ret.stdout.strip()) == 0 ) or len(ret.stdout.strip().split("\n")) == nOut
+        assert (nOut == 0 and len(ret.stdout.strip()) == 0) or len(
+            ret.stdout.strip().split("\n")
+        ) == nOut
     if nErr is not None:
-        assert ( nErr == 0 and len(ret.stderr.strip()) == 0 ) or len(ret.stderr.strip().split("\n")) == nErr
+        assert (nErr == 0 and len(ret.stderr.strip()) == 0) or len(
+            ret.stderr.strip().split("\n")
+        ) == nErr
+
 
 @needCredentials
 def test_search_sample(script_runner):
