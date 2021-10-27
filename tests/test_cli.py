@@ -1,15 +1,17 @@
-from __future__ import unicode_literals, print_function
 import distutils.spawn
+import os
 import os.path
+import stat
 import subprocess
+
 import pytest
+
 from pytest_console_scripts import script_runner
 
 testDBCred = os.path.join(os.path.dirname(__file__), "data", "params.json")
-import os,stat
 if stat.S_IMODE(os.stat(testDBCred).st_mode) != stat.S_IRUSR:
     os.chmod(testDBCred, stat.S_IRUSR) ## set 400
-testDBArg = "--database={0}".format(testDBCred)
+testDBArg = f"--database={testDBCred}"
 
 _hasROOT = False
 try:
@@ -25,7 +27,7 @@ def tmptestdbcopy(tmpdir):
     import shutil
     shutil.copy2(os.path.join(os.path.dirname(__file__), "data", "params.json"), str(tmpdir.join("params.json")))
     shutil.copy2(os.path.join(os.path.dirname(__file__), "data", "test.db"), str(tmpdir.join("test.db")))
-    yield "--database={0}".format(str(tmpdir.join("params.json")))
+    yield "--database={}".format(str(tmpdir.join("params.json")))
 
 def checkSuccessOutLines(ret, nOut=None, nErr=None):
     print(ret.stdout)
@@ -63,7 +65,7 @@ def test_add_result(script_runner, tmptestdbcopy):
 def test_import_dataset(script_runner, tmptestdbcopy):
     dasName = "/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIAutumn18NanoAODv4-Nano14Dec2018_102X_upgrade2018_realistic_v16-v1/NANOAODSIM"
     checkSuccessOutLines(script_runner.run("das_import", "--continue", tmptestdbcopy, "--energy=13", "--xsection=6225.42", "--process=DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXF-pythia8", dasName))
-    checkSuccessOutLines(script_runner.run("search_SAMADhi", tmptestdbcopy, "dataset", "--name={0}".format(dasName)), nOut=1)
+    checkSuccessOutLines(script_runner.run("search_SAMADhi", tmptestdbcopy, "dataset", f"--name={dasName}"), nOut=1)
 
 @needGridProxy
 def test_import_dataset_update_xsec(script_runner, tmptestdbcopy):

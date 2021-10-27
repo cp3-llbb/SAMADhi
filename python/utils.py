@@ -1,6 +1,5 @@
-from __future__ import unicode_literals, print_function
-from builtins import input
 from contextlib import contextmanager
+
 
 def parsePath(pth):
     """ Expand (user and vars), and check that a path is a valid file or directory """
@@ -8,7 +7,7 @@ def parsePath(pth):
     import argparse
     pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
     if not os.path.exists(pth) or not ( os.path.isdir(pth) or os.path.isfile(pth) ):
-        raise argparse.ArgumentError("{0} is not an existing file or directory".format(pth))
+        raise argparse.ArgumentError(f"{pth} is not an existing file or directory")
     return pth
 
 def userFromPath(pth):
@@ -27,9 +26,9 @@ def checkWriteable(pth):
     import os, os.path
     pth = os.path.abspath(os.path.expandvars(os.path.expanduser(pth)))
     if not os.access(pth, os.W_OK):
-        raise argparse.ArgumentError("Cannot write to {0}".format(pth))
+        raise argparse.ArgumentError(f"Cannot write to {pth}")
     if os.path.isfile(pth):
-        raise argparse.ArgumentError("File already exists: {0}".format(pth))
+        raise argparse.ArgumentError(f"File already exists: {pth}")
     return pth
 
 @contextmanager
@@ -68,10 +67,10 @@ def confirm(prompt=None, resp=False, assumeDefault=False):
     False for no. 'resp' should be set to the default value assumed by the caller when
     user simply types ENTER.
     >>> confirm(prompt='Create Directory?', resp=True)
-    Create Directory? [y]|n: 
+    Create Directory? [y]|n:
     True
     >>> confirm(prompt='Create Directory?', resp=False)
-    Create Directory? [n]|y: 
+    Create Directory? [n]|y:
     False
     >>> confirm(prompt='Create Directory?', resp=False)
     Create Directory? [n]|y: y
@@ -80,9 +79,9 @@ def confirm(prompt=None, resp=False, assumeDefault=False):
     if prompt is None:
         prompt = 'Confirm'
     if resp:
-        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
+        prompt = '{} [{}]|{}: '.format(prompt, 'y', 'n')
     else:
-        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
+        prompt = '{} [{}]|{}: '.format(prompt, 'n', 'y')
     if assumeDefault:
         print("".join((prompt, ("y" if resp else "n"))))
         return resp
@@ -133,7 +132,7 @@ def prompt_sample(sample):
         if smp_db is not None:
             sample.source_sample = smp_db
         else:
-            continue 
+            continue
 
 def prompt_dataset(sample):
     """prompts for the source dataset among the existing ones"""

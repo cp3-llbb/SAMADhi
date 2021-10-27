@@ -1,17 +1,24 @@
 #!/usr/bin/env python
 """ Script to do basic checks to the database and output statistics on usage and issues """
 
-import os,errno,json
 import argparse
+import errno
+import json
+import os
+import re
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
+
 import numpy as np
-import re
-from .SAMADhi import Analysis, Dataset, Sample, Result, SAMADhiDB
-from .SAMADhi import File as SFile
-from .das_import import query_das
+
 from playhouse.shortcuts import model_to_dict
+
+from .das_import import query_das
+from .SAMADhi import Analysis, Dataset
+from .SAMADhi import File as SFile
+from .SAMADhi import Result, SAMADhiDB, Sample
+
 
 @contextmanager
 def openRootFile(fileName, noOp=False, mode="update"):
@@ -33,7 +40,7 @@ def json_serialize(obj):
         try:
             return model_to_dict(obj)
         except Exception as ex:
-            raise TypeError("Object {0!r} could not be serialized: {1}".format(obj, ex))
+            raise TypeError(f"Object {obj!r} could not be serialized: {ex}")
 
 def saveReportJSON(jReport, outFileName, outDir=".", symlinkDir=None):
     outFullName = os.path.join(outDir, outFileName)
@@ -47,7 +54,7 @@ def main(args=None):
     parser.add_argument("-p", "--path", type=(lambda p : os.path.abspath(os.path.expandvars(os.path.expanduser(p)))),
         default=datetime.now().strftime("%y%m%d-%H:%M:%S"),
         help="Destination path")
-    parser.add_argument("-b", "--basedir", 
+    parser.add_argument("-b", "--basedir",
         help="Directory where the website will be installed")
     parser.add_argument("-f", "--full", action="store_true", dest="DAScrosscheck",
         help="Full check: compares each Dataset entry to DAS and check for consistency (slow!)")
@@ -113,7 +120,7 @@ def collectGeneralStats():
     print("\nGeneral statistics:")
     print("======================")
     for kt,num in result.items():
-        print("{0:d} {1}".format(num, kt[1:].lower()))
+        print(f"{num:d} {kt[1:].lower()}")
     return result
 
 def checkDatasets():
@@ -128,8 +135,8 @@ def checkDatasets():
             result.append([ dataset, "Inconsistent with DAS" ])
             print("{0.name} (imported on {0.creation_time!s}) -- Error getting dataset in DAS".format(dataset))
             continue
-          
-        # perform some checks: 
+
+        # perform some checks:
         try:
             # release name either matches or is unknown in DAS
             test1 = metadata['release'] == "unknown" or dataset.cmssw_release == metadata['release']
@@ -180,7 +187,7 @@ def checkDatasetsIntegrity():
 
 def makePie(uName, data, title=None, save=False):
     from cppyy import gbl
-    pie = gbl.TPie("{0}Pie".format(uName), title if title is not None else uName, len(data))
+    pie = gbl.TPie(f"{uName}Pie", title if title is not None else uName, len(data))
     for idx, (val, freq) in enumerate(data.items()):
         pie.SetEntryVal(idx, freq)
         pie.SetEntryLabel(idx, val)
@@ -196,7 +203,7 @@ def makePie(uName, data, title=None, save=False):
 
 def getFreqs(model, attName, addNoneTo=None):
     from peewee import fn
-    freqs = dict((str(getattr(val, attName)), val.count) for val in model.select(getattr(model, attName), fn.Count(model.id).alias("count")).group_by(getattr(model, attName)))
+    freqs = {str(getattr(val, attName)): val.count for val in model.select(getattr(model, attName), fn.Count(model.id).alias("count")).group_by(getattr(model, attName))}
     if addNoneTo is not None and None in freqs:
         freqs[addNoneTo] = freqs.get(addNoneTo, 0)+freqs[None]
         del freqs[None]
@@ -230,7 +237,7 @@ def analyzeDatasetsStatistics(writeRoot=False):
     for prop in ("cmssw_release", "globaltag", "datatype", "energy"):
         nDataset_by_prop = getFreqs(Dataset, prop, addNoneTo="Unknown")
         stats[prop] = [ [k,v] for k,v in nDataset_by_prop.items() ]
-        makePie("dataset{0}".format(prop.capitalize()), nDataset_by_prop, title="Datasets {0}".format(prop), save=writeRoot)
+        makePie(f"dataset{prop.capitalize()}", nDataset_by_prop, title=f"Datasets {prop}", save=writeRoot)
 
     dset_time, dset_nsamples, dset_nevents, dset_dsize = zip(*(
         ((int(dset.creation_time.strftime("%s"))*1000 if dset.creation_time is not None else 0),
@@ -260,12 +267,12 @@ def checkResultPath():
         # check that the path exists, and keep track of the sample if not the case.
         if not os.path.exists(res.path):
             print("Result #{0.id} (created on {0.creation_time} by {0.author}):".format(res))
-            print(" missing path: {0}".format(res.path))
+            print(f" missing path: {res.path}")
             result.append(res)
     if len(result) == 0:
         print("None")
     return result
-    
+
 def checkSamplePath():
     print("\nSamples with missing path:")
     print("===========================")
@@ -276,7 +283,7 @@ def checkSamplePath():
         for path in vpath:
             if not os.path.exists(path):
                 print("Sample #{0.id:d} (created on {0.creation_time!s} by {0.author}):".format(sample))
-                print(" missing path: {0}".format(path))
+                print(f" missing path: {path}")
                 print(vpath)
                 result.append(sample)
                 break
@@ -300,7 +307,7 @@ def getSamplePath(sample):
 
 def selectResults(symlinkDir):
     # look for result records pointing to a ROOT file
-    # eventually further filter 
+    # eventually further filter
     print("\nSelected results:")
     print("===========================")
     result = []
@@ -312,7 +319,7 @@ def selectResults(symlinkDir):
                 path = os.path.join(path, f)
                 res.path = path
         if os.path.exists(path) and os.path.isfile(path) and path.lower().endswith(".root"):
-            symlink = os.path.join(symlinkDir, "res_{0}.root".format(res.id))
+            symlink = os.path.join(symlinkDir, f"res_{res.id}.root")
             relpath = "../data/res_{0}.root"%(res.id)
             force_symlink(path, symlink)
             result.append([ res, relpath ])
@@ -367,7 +374,7 @@ def analyzeAnalysisStatistics(writeRoot=False):
     nAnalyses_by_contact = getFreqs(Analysis, "contact", addNoneTo="Unknown")
     stats["analysisContacts"] = [ [k,v] for k,v in nAnalyses_by_contact.items() ]
     makePie("analysisContact", nAnalyses_by_contact, title="Analysis contacts", save=writeRoot)
-    nResults_by_analysis = dict((ana.description, len(ana.results)) for ana in Analysis.select() if len(ana.results) > 0)
+    nResults_by_analysis = {ana.description: len(ana.results) for ana in Analysis.select() if len(ana.results) > 0}
     stats["analysisResults"] = [ [k,v] for k,v in nResults_by_analysis.items() ]
     makePie("analysisResults", nResults_by_analysis, title="Analysis results", save=writeRoot)
 
@@ -450,7 +457,7 @@ def copyInconsistencies(basedir):
         with open(os.path.join(basedir, "data", "DatasetsAnalysisReport.json")) as jfile:
             content = json.load(jfile)
             return content["DatabaseInconsistencies"]
-    except IOError:
+    except OSError:
         # no file. Return an empty string.
         # This will happen if basedir is not (properly) set or if it is new.
         print("No previous dataset analysis report found in path. The Database inconsistencies will be empty.")

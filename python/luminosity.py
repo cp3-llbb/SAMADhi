@@ -1,10 +1,11 @@
-from __future__ import unicode_literals, print_function
+import argparse
+import subprocess
+from itertools import chain
+
+
 """
 Helper functions for computing the luminosity for a set of samples
 """
-from itertools import chain
-import argparse
-import subprocess
 
 def parse_luminosity_csv(result):
     """ Parse the CSV file produced by brilcalc, and return the total recorded luminosity in /pb """
@@ -113,5 +114,5 @@ def compute_sample_luminosity(args=None):
     else:
         with SAMADhiDB(credentials=args.database) as db:
             for sample in chain((Sample.get_by_id(id_) for id_ in options.ids),
-                    chain.from_iterable(Sample.select().where(Sample.name % replaceWildcards(name, db=db)) for name in options.names))
+                    chain.from_iterable(Sample.select().where(Sample.name % replaceWildcards(name, db=db)) for name in options.names)):
                 compute_luminosity(sample, normtag=options.normtag, local=options.local, username=options.username)

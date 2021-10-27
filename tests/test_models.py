@@ -1,5 +1,5 @@
-from __future__ import unicode_literals, print_function
 import pytest
+
 
 @pytest.fixture(scope="module")
 def sqlitetestdb():
@@ -120,18 +120,18 @@ def test_modelRels(sqlitetestdb):
             )
     datasets = (
         [ Dataset.create(
-            name="test_modelRels_data{0:d}".format(i),
+            name=f"test_modelRels_data{i:d}",
             datatype="data"
             ) for i in range(3) ] +
         [ Dataset.create(
-            name="test_modelRels_mc{0:d}".format(i),
+            name=f"test_modelRels_mc{i:d}",
             datatype="mc"
             ) for i in range(2) ]
         )
     samples = [
         Sample.create(
-            name="test_modelRels_{0}".format(ds.name.split("_")[-1]),
-            path="/test/sample/{0}".format(ds.name),
+            name="test_modelRels_{}".format(ds.name.split("_")[-1]),
+            path=f"/test/sample/{ds.name}",
             sampletype="NTUPLES",
             nevents_processed=1000,
             source_dataset=ds,
@@ -140,7 +140,7 @@ def test_modelRels(sqlitetestdb):
         ]
     for smp in samples:
         for i in range(4):
-            File.create(sample=smp, lfn="{0}/{1:d}.root".format(smp.name, i), pfn="/store/me{0}/{1:d}.root".format(smp.name, i), nevents=250, event_weight_sum=250)
+            File.create(sample=smp, lfn=f"{smp.name}/{i:d}.root", pfn=f"/store/me{smp.name}/{i:d}.root", nevents=250, event_weight_sum=250)
     res1 = Result.create(
         analysis=ana,
         author="me <me@anywhere>",

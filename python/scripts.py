@@ -1,11 +1,12 @@
-from __future__ import unicode_literals, print_function
+import argparse
+import glob
+import os.path
+from datetime import datetime
+
+
 """
 Simple command-line SAMADhi utilities: search, interactive shell etc.
 """
-import argparse
-import os.path
-import glob
-from datetime import datetime
 
 def interactive(args=None):
     """ iSAMADhi: Explore (and manipulate) the SAMADhi database in an IPython shell """
@@ -24,8 +25,8 @@ def interactive(args=None):
             "Available models: {models}\n"
             "WARNING: by default your changes *will* be committed to the database"
             ).format(
-                database="{0}({1}){2}".format(db.__class__.__name__, db.database,
-                    (" at {0}".format(db.connect_params["host"]) if "host" in db.connect_params else "")),
+                database="{}({}){}".format(db.__class__.__name__, db.database,
+                    (" at {}".format(db.connect_params["host"]) if "host" in db.connect_params else "")),
                 models=", ".join(md.__name__ for md in _models)
                 ))
 
@@ -42,7 +43,7 @@ def search(args=None):
     args = parser.parse_args(args=args)
     # more validation
     if args.type in ("dataset", "analysis") and args.path:
-        parser.error("Cannot search {0} by path".format(args.type))
+        parser.error(f"Cannot search {args.type} by path")
     elif args.type == "result" and args.name:
         parser.error("Cannot search results by name")
 
@@ -67,7 +68,7 @@ def search(args=None):
                 print(str(entry))
                 print(86*"-")
         else:
-            fmtStr = "{{0.id}}\t{{0.{0}}}".format(("name" if args.type not in ("result", "analysis") else "description"))
+            fmtStr = "{{0.id}}\t{{0.{0}}}".format("name" if args.type not in ("result", "analysis") else "description")
             for res in results:
                 print(fmtStr.format(res))
 
@@ -96,9 +97,9 @@ def update_datasets_cross_section(args=None):
                     # Consider a cross-section of one as a non-updated value
                     if sample.source_dataset.xsection == 1 or sample.source_dataset.xsection is None:
                         # Try to find a similar sample in the database, with the same center of mass energy
-                        print("Updating cross-section of {}".format(sample.source_dataset.process))
+                        print(f"Updating cross-section of {sample.source_dataset.process}")
                         if args.force:
-                            print("  Forcing the cross-section to {}".format(args.force))
+                            print(f"  Forcing the cross-section to {args.force}")
                             sample.source_dataset.xsection = args.force
                         else:
                             possible_matches = Dataset.select().where(
@@ -112,7 +113,7 @@ def update_datasets_cross_section(args=None):
                                 print("  Warning: more than one possible match found for this dataset, and they do not have the same cross-section. I do not know what to do...")
                             else:
                                 xsec = possible_matches[0].xsec
-                                print("  Updating with cross-section = {}".format(xsec))
+                                print(f"  Updating with cross-section = {xsec}")
                                 sample.source_dataset.xsection = xsec
 
 def get_file_data(f_):
@@ -173,7 +174,7 @@ def add_sample(args=None):
 
     with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.name)
-        with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
+        with confirm_transaction(db, "Insert into the database?" if existing is None else f"Replace existing {existing!s}?", assumeDefault=args.assumeDefault):
             sample, created = Sample.get_or_create(name=args.name, path=args.path,
                     defaults={
                         "sampletype" : args.type,
@@ -210,7 +211,7 @@ def add_sample(args=None):
             else:
                 files = glob.glob(os.path.join(sample.path, "*.root"))
             if not files:
-                print("Warning: no root files found in {0!r}".format(sample.path))
+                print(f"Warning: no root files found in {sample.path!r}")
             for fName in files:
                 weight_sum, entries = get_file_data(fName)
                 File.create(
@@ -269,7 +270,7 @@ def add_result(args=None):
             for smpId in inputSampleIDs:
                 smp = Sample.get_or_none(Sample.id == smpId)
                 if not smp:
-                    print("Could not find sample #{0:d}".format(smpId))
+                    print(f"Could not find sample #{smpId:d}")
                 else:
                     SampleResult.create(sample=smp, result=result)
             print(result)
@@ -308,13 +309,13 @@ def checkAndClean(args=None):
         # now clean orphan datasets
         ds_orphan = arg_loadJSON(os.path.join(args.path, "DatasetsAnalysisReport.json")).get("Orphans", [])
         ## print a summary now
-        print("\n\nWhitelisted sample with missing path. Investigate:\n{0}".format(
+        print("\n\nWhitelisted sample with missing path. Investigate:\n{}".format(
             "\n".join(smp["name"] for smp in smp_empty)))
-        print("\n\nWhitelisted sample with unreachable path. Investigate:\n{0}".format(
+        print("\n\nWhitelisted sample with unreachable path. Investigate:\n{}".format(
             "\n".join(smp["name"] for smp in smp_investigate)))
-        print("\n\nSamples to be deleted because of missing path:\n{0}".format(
+        print("\n\nSamples to be deleted because of missing path:\n{}".format(
             "\n".join(smp["name"] for smp in smp_empty_delete)))
-        print("\n\nSamples to be deleted because of unreachable path:\n{0}".format(
+        print("\n\nSamples to be deleted because of unreachable path:\n{}".format(
             "\n".join(smp["name"] for smp in smp_delete)))
         ## actually perform the cleanup
         with SAMADhiDB(credentials=args.database) as db:

@@ -1,10 +1,12 @@
-from __future__ import unicode_literals, print_function
-import os, os.path
+import os
+import os.path
+
 import pytest
+
 from pytest_console_scripts import script_runner
 
 needCredentials = pytest.mark.skipif(not os.path.isfile(os.path.expandvars(os.path.expanduser(os.getenv("SAMADHI_CREDENTIALS", "~/.samadhi")))), reason="Needs valid SAMADhi credentials")
-dbArg = ("--database={0}".format(os.getenv("SAMADHI_CREDENTIALS")) if os.getenv("SAMADHI_CREDENTIALS") is not None else None)
+dbArg = ("--database={}".format(os.getenv("SAMADHI_CREDENTIALS")) if os.getenv("SAMADHI_CREDENTIALS") is not None else None)
 
 def checkSuccessOutLines(ret, nOut=None, nErr=None):
     print(ret.stdout)

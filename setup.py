@@ -3,12 +3,17 @@
 derived from the pypa example, see https://github.com/pypa/sampleproject
 """
 
-from setuptools import setup, find_packages
-import os, os.path
+import os
+import os.path
+from distutils.command.build_py import build_py
+
+from setuptools import find_packages, setup
+
+# Get the long description from the relevant file
+
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-from distutils.command.build_py import build_py
 class build_py_with_init(build_py):
     def run(self):
         if not self.dry_run:
@@ -16,11 +21,9 @@ class build_py_with_init(build_py):
                 pkgDir = os.path.join(self.build_lib, pkgNm)
                 self.mkpath(pkgDir)
                 with open(os.path.join(pkgDir, "__init__.py"), "w") as initf:
-                    initf.write(u"")
+                    initf.write("")
         build_py.run(self)
 
-# Get the long description from the relevant file
-from io import open
 with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 

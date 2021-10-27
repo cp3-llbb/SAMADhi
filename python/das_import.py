@@ -1,10 +1,10 @@
-from __future__ import unicode_literals, print_function
 import datetime
-import re
 import json
+import re
 import subprocess
 
 from .utils import confirm_transaction
+
 
 def do_das_query(query):
     """
@@ -82,7 +82,7 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
         "comment": comment
     })
     if not all(ky in metadata for ky in ("name", "datatype")):
-        raise RuntimeError("Could not find all required keys (name and datatype) in {0!s}".format(metadata))
+        raise RuntimeError(f"Could not find all required keys (name and datatype) in {metadata!s}")
 
     # definition of the conversion key -> column
     column_conversion = {
@@ -96,7 +96,7 @@ def import_cms_dataset(dataset, process=None, energy=None, xsection=1.0, comment
             "xsection": 'xsection'
             }
     # columns of the dataset to create (if needed)
-    dset_columns = dict((col, metadata[key]) for col, key in column_conversion.items())
+    dset_columns = {col: metadata[key] for col, key in column_conversion.items()}
     dset_columns["creation_time"] = datetime.datetime.fromtimestamp(metadata["creation_time"]) if "creation_time" in metadata else None
 
     from .SAMADhi import SAMADhiDB, Dataset
@@ -129,16 +129,16 @@ def get_nanoFile_data(fileName):
     from cppyy import gbl
     f = gbl.TFile.Open(fileName)
     if not f:
-        print("Warning: could not open file {0}".format(fileName))
+        print(f"Warning: could not open file {fileName}")
         return None, None
     eventsTree = f.Get("Events")
     if ( not eventsTree ) or ( not isinstance(eventsTree, gbl.TTree) ):
-        print("No tree with name 'Events' found in {0}".format(fileName))
+        print(f"No tree with name 'Events' found in {fileName}")
         return None, None
     entries = eventsTree.GetEntries()
     runs = f.Get("Runs")
     if ( not runs ) or ( not isinstance(runs, gbl.TTree) ):
-        print("No tree with name 'Runs' found in {0}".format(fileName))
+        print(f"No tree with name 'Runs' found in {fileName}")
         return entries, None
     sums = dict()
     runs.GetEntry(0)
@@ -159,7 +159,7 @@ def get_nanoFile_data(fileName):
                 entryvals = getattr(runs, cn)
                 ## warning and workaround (these should be consistent for all NanoAODs in a sample)
                 if len(vals) != len(entryvals):
-                    logger.error("Runs tree: array of sums {0} has a different length in entry {1:d}: {2:d} (expected {3:d})".format(cn, entry, len(entryvals), len(vals)))
+                    logger.error(f"Runs tree: array of sums {cn} has a different length in entry {entry:d}: {len(entryvals):d} (expected {len(vals):d})")
                 for i in range(min(len(vals), len(entryvals))):
                     vals[i] += entryvals[i]
             else:
@@ -183,13 +183,13 @@ def import_nanoAOD_sample(args=None):
     if subprocess.call(["voms-proxy-info", "--exists", "--valid", "0:5"]) != 0:
         raise RuntimeError("No valid proxy found (with at least 5 minutes left)")
 
-    parent_results = do_das_query("parent dataset={0}".format(args.path))
+    parent_results = do_das_query(f"parent dataset={args.path}")
     if not ( len(parent_results) == 1 and len(parent_results[0]["parent"]) == 1):
         raise RuntimeError("Parent dataset query result has an unexpected format")
     parent_name = parent_results[0]["parent"][0]["name"]
     source_dataset = import_cms_dataset(parent_name, process=args.process, energy=args.energy, xsection=args.xsection, comment=args.datasetcomment, assumeDefault=args.assumeDefault, credentials=args.database)
 
-    files_results = do_das_query("file dataset={0}".format(args.path))
+    files_results = do_das_query(f"file dataset={args.path}")
     nevents = sum(fr["file"][0]["nevents"] for fr in files_results)
 
     from .SAMADhi import Sample, File, SAMADhiDB
@@ -198,7 +198,7 @@ def import_nanoAOD_sample(args=None):
     ## Next: the add_sample part
     with SAMADhiDB(credentials=args.database) as db:
         existing = Sample.get_or_none(Sample.name == args.path)
-        with confirm_transaction(db, "Insert into the database?" if existing is None else "Replace existing {0!s}?".format(existing), assumeDefault=args.assumeDefault):
+        with confirm_transaction(db, "Insert into the database?" if existing is None else f"Replace existing {existing!s}?", assumeDefault=args.assumeDefault):
             sample, created = Sample.get_or_create(name=args.path, path=args.path,
                     defaults={
                         "sampletype" : "NTUPLES",

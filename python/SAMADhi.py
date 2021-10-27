@@ -1,4 +1,10 @@
-from __future__ import unicode_literals
+import datetime
+import os
+import warnings
+from contextlib import contextmanager
+
+from peewee import *
+
 """
 Object representation of the SAMADhi database tables (based on peewee)
 
@@ -11,36 +17,32 @@ Example:
 __all__ = ["loadCredentials", "SAMADhiDB"] ## models added below
 _models = [] ## list for binding a database
 
-import warnings
 warnings.filterwarnings("ignore", module="peewee", category=UserWarning, message="Unable to determine MySQL version: .*")
-import os
 if os.getenv("CMSSW_VERSION") is not None:
     """ Silence some warnings if inside CMSSW """
     for warnMod in ("pysqlite2.dbapi2", "peewee"):
         warnings.filterwarnings("ignore", module=warnMod, category=DeprecationWarning, message="Converters and adapters are deprecated. Please use only supported SQLite types. Any type mapping should happen in layer above this module.")
 
-from peewee import *
-import datetime
 
 def loadCredentials(path="~/.samadhi"):
     import json, os, stat
     credentials = os.path.expanduser(path)
     if not os.path.exists(credentials):
-        raise IOError('Credentials file %r not found.' % credentials)
+        raise OSError('Credentials file %r not found.' % credentials)
     # Check permission
     mode = stat.S_IMODE(os.stat(credentials).st_mode)
     if mode != stat.S_IRUSR:
-        raise IOError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
+        raise OSError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
 
-    with open(credentials, "r") as f:
+    with open(credentials) as f:
         data = json.load(f)
     if data.get("test", False):
         if "database" not in data:
-            raise KeyError("Credentials json file at {0} does not contain 'database'".format(credentials))
+            raise KeyError(f"Credentials json file at {credentials} does not contain 'database'")
     else:
         for ky in ("login", "password", "database"):
             if ky not in data:
-                raise KeyError("Credentials json file at {0} does not contain '{1}'".format(credentials, ky))
+                raise KeyError(f"Credentials json file at {credentials} does not contain '{ky}'")
         if "hostname" not in data:
             data["hostname"] = "localhost"
 
@@ -70,8 +72,8 @@ class Analysis(BaseModel):
                 "{contact}"
                 "  Number of associated results: {nresults:d}"
                 ).format(self,
-                    cadi=("  CADI line: {0.cadiline}\n".format(self) if self.cadiline else ""),
-                    contact=("  Contact/Promotor: {0.contact}\n".format(self) if self.contact else ""),
+                    cadi=(f"  CADI line: {self.cadiline}\n" if self.cadiline else ""),
+                    contact=(f"  Contact/Promotor: {self.contact}\n" if self.contact else ""),
                     nresults=self.results.count()
                     )
 
@@ -101,10 +103,10 @@ class Dataset(BaseModel):
         """Initialize a dataset by name and datatype. Other attributes may be null and should be set separately"""
         for rK in ("name", "datatype"):
             if rK not in kwargs:
-                raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
+                raise RuntimeError(f"Argument '{rK}' is required to construct {self.__class__.__name__}")
         if kwargs["datatype"] not in ("mc", "data"):
-            raise ValueError("dataset type must be mc or data, not {0!r}".format(kwargs["datatype"]))
-        return super(Dataset, cls).create(**kwargs)
+            raise ValueError("dataset type must be mc or data, not {!r}".format(kwargs["datatype"]))
+        return super().create(**kwargs)
 
     def __str__(self):
         return ("Dataset #{0.id:d}:\n"
@@ -120,10 +122,10 @@ class Dataset(BaseModel):
                 "  creation time (on DAS): {0.creation_time!s}\n"
                 "  comment: {0.user_comment}"
                 ).format(self,
-                        nevents=("{0:d}".format(self.nevents) if self.nevents is not None else "None"),
-                        dsize=("{0:d}".format(self.dsize) if self.dsize is not None else "None"),
-                        xsection=("{0:f}".format(self.xsection) if self.xsection is not None else "None"),
-                        energy=("{0:f}".format(self.energy) if self.energy is not None else "None"),
+                        nevents=(f"{self.nevents:d}" if self.nevents is not None else "None"),
+                        dsize=(f"{self.dsize:d}" if self.dsize is not None else "None"),
+                        xsection=(f"{self.xsection:f}" if self.xsection is not None else "None"),
+                        energy=(f"{self.energy:f}" if self.energy is not None else "None"),
                         )
 
 class Sample(BaseModel):
@@ -163,10 +165,10 @@ class Sample(BaseModel):
     def create(cls, **kwargs):
         for rK in ("name", "path", "sampletype", "nevents_processed"):
             if rK not in kwargs:
-                raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
+                raise RuntimeError(f"Argument '{rK}' is required to construct {self.__class__.__name__}")
         if kwargs["sampletype"] not in Sample.SampleTypes:
-            raise ValueError("sample type {0} is unknown (need one of {1})".format(kwargs["sampletype"], ", ".join(Sample.SampleTypes)))
-        return super(Sample, cls).create(**kwargs)
+            raise ValueError("sample type {} is unknown (need one of {})".format(kwargs["sampletype"], ", ".join(Sample.SampleTypes)))
+        return super().create(**kwargs)
 
     def removeFiles(self):
         File.delete().where(File.sample == self).execute()
@@ -204,18 +206,17 @@ class Sample(BaseModel):
                 "{source_sample}"
                 "  {files}"
                 ).format(self,
-                    nevents=("{0:d}".format(self.nevents) if self.nevents is not None else "none"),
+                    nevents=(f"{self.nevents:d}" if self.nevents is not None else "none"),
                     sumw_extras=("  has extras sum of event weight\n" if self.extras_event_weight_sum else ""),
                     hasproclumi=("has" if self.processed_lumi else "does not have"),
-                    source_dataset=("  source dataset: {0.id:d}\n".format(self.source_dataset) if self.source_dataset is not None else ""),
-                    source_sample=("  source sample: {0.id:d}\n".format(self.source_sample) if self.source_sample is not None else ""),
-                    files=("{0:d} files: \n    - {1}".format(self.files.count(),
+                    source_dataset=(f"  source dataset: {self.source_dataset.id:d}\n" if self.source_dataset is not None else ""),
+                    source_sample=(f"  source sample: {self.source_sample.id:d}\n" if self.source_sample is not None else ""),
+                    files=("{:d} files: \n    - {}".format(self.files.count(),
                             "\n    - ".join(
-                                (("{0.lfn} ({nevents} entries)".format(fl, nevents="{0:d}".format(fl.nevents) if fl.nevents is not None else "no") for fl in self.files)
+                                ("{0.lfn} ({nevents} entries)".format(fl, nevents=f"{fl.nevents:d}" if fl.nevents is not None else "no") for fl in self.files)
                                     if self.files.count() < 6 else
                                  (["{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files[:3]]
                                  +["...", "{0.lfn} ({0.nevents:d} entries)".format(self.files[-1])])
-                                )
                             )) if self.id else "no files"
                            )
                     )
@@ -240,8 +241,8 @@ class File(BaseModel):
     def create(cls, **kwargs):
         for rK in ("lfn", "pfn", "event_weight_sum", "nevents"):
             if rK not in kwargs:
-                raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
-        return super(File, cls).create(**kwargs)
+                raise RuntimeError(f"Argument '{rK}' is required to construct {self.__class__.__name__}")
+        return super().create(**kwargs)
 
     def __str__(self):
         return self.lfn
@@ -270,8 +271,8 @@ class Result(BaseModel):
     def create(cls, **kwargs):
         for rK in ("path",):
             if rK not in kwargs:
-                raise RuntimeError("Argument '{0}' is required to construct {1}".format(rK, self.__class__.__name__))
-        return super(Result, cls).create(**kwargs)
+                raise RuntimeError(f"Argument '{rK}' is required to construct {self.__class__.__name__}")
+        return super().create(**kwargs)
 
     def __str__(self):
         return ("Result in {0.path}\n"
@@ -279,8 +280,8 @@ class Result(BaseModel):
                 "{desc}"
                 "{elog}"
                 ).format(self,
-                    desc=("\n  part of analysis {0.analysis.description}".format(self) if self.analysis else ""),
-                    elog=("\n  more details in {0.elog}".format(self) if self.elog else "")
+                    desc=(f"\n  part of analysis {self.analysis.description}" if self.analysis else ""),
+                    elog=(f"\n  more details in {self.elog}" if self.elog else "")
                     )
 
 class SampleResult(BaseModel):
@@ -298,7 +299,6 @@ class SampleResult(BaseModel):
 _models = [Analysis, Dataset, Sample, File, Result, SampleResult]
 __all__ += _models
 
-from contextlib import contextmanager
 @contextmanager
 def SAMADhiDB(credentials='~/.samadhi'):
     """create a database object and returns the db handle from peewee"""
