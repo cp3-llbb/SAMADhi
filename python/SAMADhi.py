@@ -1,304 +1,388 @@
-try:
-    from storm.locals import *
-except ImportError as error:
-    raise ImportError("Could not import storm, please make sure to install the dependencies (source installdeps_cmssw.sh inside CMSSW, or SAMADhi/install_standalone.sh otherwise): {0}".format(error))
+import datetime
+import os
+import warnings
+from contextlib import contextmanager
 
-#db store connection
+from peewee import *
 
-def DbStore(credentials='~/.samadhi'):
-    """create a database object and returns the db store from STORM"""
+"""
+Object representation of the SAMADhi database tables (based on peewee)
 
+Example:
+>>> from cp3_llbb.SAMADhi.SAMADhi import * ## import models and SAMADhiDB
+>>> with SAMADhiDB():
+>>>     mySamples = Sample.select().where(Sample.author == "MYUSERNAME")
+"""
+
+__all__ = ["loadCredentials", "SAMADhiDB"]  ## models added below
+_models = []  ## list for binding a database
+
+warnings.filterwarnings(
+    "ignore", module="peewee", category=UserWarning, message="Unable to determine MySQL version: .*"
+)
+if os.getenv("CMSSW_VERSION") is not None:
+    """Silence some warnings if inside CMSSW"""
+    for warnMod in ("pysqlite2.dbapi2", "peewee"):
+        warnings.filterwarnings(
+            "ignore",
+            module=warnMod,
+            category=DeprecationWarning,
+            message="Converters and adapters are deprecated. Please use only supported SQLite types. Any type mapping should happen in layer above this module.",
+        )
+
+
+def loadCredentials(path="~/.samadhi"):
     import json, os, stat
-    credentials = os.path.expanduser(credentials)
-    if not os.path.exists(credentials):
-        raise IOError('Credentials file %r not found.' % credentials)
 
+    credentials = os.path.expanduser(path)
+    if not os.path.exists(credentials):
+        raise OSError("Credentials file %r not found." % credentials)
     # Check permission
     mode = stat.S_IMODE(os.stat(credentials).st_mode)
-    if mode != int('400', 8):
-        raise IOError('Credentials file has wrong permission. Please execute \'chmod 400 %s\'' % credentials)
+    if mode != stat.S_IRUSR:
+        raise OSError(
+            "Credentials file has wrong permission. Please execute 'chmod 400 %s'" % credentials
+        )
 
-    with open(credentials, 'r') as f:
+    with open(credentials) as f:
         data = json.load(f)
-
-        login = data['login']
-        password = data['password']
-        hostname = data['hostname'] if 'hostname' in data else 'localhost'
-        database = data['database']
-
-        db_connection_string = "mysql://%s:%s@%s/%s" % (login, password, hostname, database)
-        return Store(create_database(db_connection_string))
-
-#definition of the DB interface classes 
-
-class Dataset(Storm):
-  """Table to represent one sample from DAS
-     on which we run the analysis"""
-  __storm_table__ = "dataset"
-  dataset_id = Int(primary=True)
-  name = Unicode()
-  nevents = Int()
-  dsize = Int()
-  process = Unicode()
-  xsection = Float()
-  cmssw_release = Unicode()
-  globaltag = Unicode()
-  datatype = Unicode()
-  user_comment = Unicode()
-  energy = Float()
-  creation_time = DateTime()
-  samples = ReferenceSet(dataset_id,"Sample.source_dataset_id")
-  
-  def __init__(self, name, datatype):
-    """Initialize a dataset by name and datatype.
-       Other attributes may be null and should be set separately"""
-    self.name = name
-    if datatype==u"mc" or datatype==u"data":
-      self.datatype = datatype
+    if data.get("test", False):
+        if "database" not in data:
+            raise KeyError(f"Credentials json file at {credentials} does not contain 'database'")
     else:
-      raise ValueError('dataset type must be mc or data')
+        for ky in ("login", "password", "database"):
+            if ky not in data:
+                raise KeyError(f"Credentials json file at {credentials} does not contain '{ky}'")
+        if "hostname" not in data:
+            data["hostname"] = "localhost"
 
-  def replaceBy(self, dataset):
-    """Replace one entry, but keep the same key"""
-    self.name = dataset.name
-    self.nevents = dataset.nevents
-    self.dsize = dataset.dsize
-    self.process = dataset.process
-    self.xsection = dataset.xsection
-    self.cmssw_release = dataset.cmssw_release
-    self.globaltag = dataset.globaltag
-    self.datatype = dataset.datatype
-    self.user_comment = dataset.user_comment
-    self.energy = dataset.energy
-    self.creation_time = dataset.creation_time
-  
-  def __str__(self):
-    result  = "Dataset #%s:\n"%str(self.dataset_id)
-    result += "  name: %s\n"%str(self.name)
-    result += "  process: %s\n"%str(self.process)
-    result += "  cross-section: %s\n"%str(self.xsection)
-    result += "  number of events: %s\n"%str(self.nevents)
-    result += "  size on disk: %s\n"%str(self.dsize)
-    result += "  CMSSW release: %s\n"%str(self.cmssw_release)
-    result += "  global tag: %s\n"%str(self.globaltag)
-    result += "  type (data or mc): %s\n"%str(self.datatype)
-    result += "  center-of-mass energy: %s TeV\n"%str(self.energy)
-    result += "  creation time (on DAS): %s\n"%str(self.creation_time)
-    result += "  comment: %s"%str(self.user_comment)
-    return result
-
-class Sample(Storm):
-  """Table to represent one processed sample,
-     typically a PATtupe, skim, RDS, CP, etc."""
-  __storm_table__ = "sample"
-  sample_id = Int(primary=True)
-  name = Unicode()
-  path = Unicode()
-  sampletype = Unicode()
-  nevents_processed = Int()
-  nevents = Int()
-  normalization = Float()
-  event_weight_sum = Float()
-  extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
-  luminosity = Float()
-  processed_lumi = Unicode() #  MEDIUMTEXT in MySQL
-  code_version = Unicode()
-  user_comment = Unicode()
-  author = Unicode()
-  creation_time = DateTime()
-  source_dataset_id = Int()
-  source_sample_id  = Int()
-  source_dataset = Reference(source_dataset_id, "Dataset.dataset_id")
-  source_sample = Reference(source_sample_id, "Sample.sample_id")
-  derived_samples = ReferenceSet(sample_id,"Sample.source_sample_id") 
-  results = ReferenceSet(sample_id,"SampleResult.sample_id","SampleResult.result_id","Result.result_id")
-  files = ReferenceSet(sample_id, "File.sample_id")
-
-  SampleTypes = [ "PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER" ]
-  
-  def __init__(self, name, path, sampletype, nevents_processed):
-    """Initialize a dataset by name and datatype.
-       Other attributes may be null and should be set separately"""
-    self.name = name
-    self.path = path
-    self.nevents_processed = nevents_processed
-    if sampletype in self.SampleTypes:
-      self.sampletype = sampletype
-    else:
-      raise ValueError('sample type %s is unkwown'%sampletype)
-
-  def replaceBy(self, sample):
-    """Replace one entry, but keep the same key"""
-    self.name = sample.name
-    self.path = sample.path
-    self.sampletype = sample.sampletype
-    self.nevents_processed = sample.nevents_processed
-    self.nevents = sample.nevents
-    self.normalization = sample.normalization
-    self.event_weight_sum = sample.event_weight_sum
-    self.extras_event_weight_sum = sample.extras_event_weight_sum
-    self.luminosity = sample.luminosity
-    self.code_version = sample.code_version
-    self.user_comment = sample.user_comment
-    self.source_dataset_id = sample.source_dataset_id
-    self.source_sample_id = sample.source_sample_id
-    self.author = sample.author
-    self.creation_time = sample.creation_time
-
-  def removeFiles(self, store):
-    store.find(File, File.sample_id == self.sample_id).remove()
-    self.files.clear()
+    return data
 
 
-  def getLuminosity(self):
-    """Computes the sample (effective) luminosity"""
-    if self.luminosity is not None:
-      return self.luminosity
-    else:
-      if self.source_dataset is not None:
-        if self.source_dataset.datatype=="mc":
-          # for MC, it can be computed as Nevt/xsection
-          if self.nevents_processed is not None and self.source_dataset.xsection is not None:
-            return self.nevents_processed/self.source_dataset.xsection
-        else:
-          # for DATA, it can only be obtained from the parent sample
-          if self.source_sample is not None:
-            return self.source_sample.luminosity()
-    # in all other cases, it is impossible to compute a number.
-    return None
+database = DatabaseProxy()
 
-  def __str__(self):
-    result  = "Sample #%s (created on %s by %s):\n"%(str(self.sample_id),str(self.creation_time),str(self.author))
-    result += "  name: %s\n"%str(self.name)
-    result += "  path: %s\n"%str(self.path)
-    result += "  type: %s\n"%str(self.sampletype)
-    result += "  number of processed events: %s\n"%str(self.nevents_processed)
-    result += "  number of events: %s\n"%str(self.nevents)
-    result += "  normalization: %s\n"%str(self.normalization)
-    result += "  sum of event weight: %s\n"%str(self.event_weight_sum)
-    if self.extras_event_weight_sum:
-        result += "  has extras sum of event weight\n"
-    result += "  (effective) luminosity: %s\n"%str(self.luminosity)
-    if self.processed_lumi:
-        result += "  has processed luminosity sections information\n"
-    else:
-        result += "  does not have processed luminosity sections information\n"
-    result += "  code version: %s\n"%str(self.code_version)
-    result += "  comment: %s\n"%str(self.user_comment)
-    result += "  source dataset: %s\n"%str(self.source_dataset_id)
-    result += "  source sample: %s\n"%str(self.source_sample_id)
-    if self.sample_id:
-        result += "  %d files: \n" % (self.files.count())
-        front_files = []
-        last_file = None
-        if self.files.count() > 5:
-            c = 0
-            for f in self.files:
-                if c < 3:
-                    front_files.append(f)
+# Code generated by:
+# python -m pwiz -e mysql --host=cp3.irmp.ucl.ac.be --user=llbb --password --info llbb
+# Peewee version: 3.9.4
+class BaseModel(Model):
+    class Meta:
+        database = database
 
-                if c == self.files.count() - 1:
-                    last_file = f
-                c += 1
-        else:
-            front_files = self.files
 
-        for f in front_files:
-            result += "    - %s (%d entries)\n" % (str(f.lfn), f.nevents)
-        if last_file:
-            result += "    - ...\n"
-            result += "    - %s (%d entries)\n" % (str(last_file.lfn), last_file.nevents)
-    else:
-        # No way to know if some files are here
-        result += "  no files"
+class Analysis(BaseModel):
+    id = AutoField(column_name="analysis_id")
+    cadiline = TextField(null=True)
+    contact = TextField(null=True)
+    description = TextField(null=True)
 
-    return result
-
-class Result(Storm):
-  """Table to represent one physics result,
-     combining several samples."""
-  __storm_table__ = "result"
-  result_id = Int(primary=True)
-  path = Unicode()
-  description = Unicode()
-  author = Unicode()
-  creation_time = DateTime()
-  analysis_id = Int()
-  analysis = Reference(analysis_id, "Analysis.analysis_id")
-  elog = Unicode()
-  samples = ReferenceSet(result_id,"SampleResult.result_id","SampleResult.sample_id","Sample.sample_id")
-
-  def __init__(self,path):
-    self.path = path
-
-  def replaceBy(self, result):
-    """Replace one entry, but keep the same key"""
-    self.path = result.path
-    self.description = result.description
-    self.author = result.author
-    self.analysis_id = result.analysis_id
-    self.elog = result.elog
-
-  def __str__(self):
-    result  = "Result in %s \n  created on %s by %s\n  "%(str(self.path),str(self.creation_time),str(self.author))
-    result += "%s"%str(self.description)
-    if self.analysis is not None:
-        result += "\n  part of analysis %s"%str(self.analysis.description)
-    if self.elog is not None:
-        result += "\n  more details in %s"%str(self.elog)
-    return result
-
-class SampleResult(Storm):
-  """Many to many relationship between samples and results."""
-  __storm_table__ = "sampleresult"
-  __storm_primary__ = "sample_id", "result_id"
-  sample_id = Int()
-  result_id = Int()
-
-class File(Storm):
-    __storm_table__ = "file"
-    id = Int(primary=True)
-    sample_id = Int()
-    lfn = Unicode()  # Local file name: /store/
-    pfn = Unicode()  # Physical file name: srm:// or root://
-    event_weight_sum = Float()
-    extras_event_weight_sum = Unicode() #  MEDIUMTEXT in MySQL
-    nevents = Int()
-
-    sample = Reference(sample_id, "Sample.sample_id")
-
-    def __init__(self, lfn, pfn, event_weight_sum, extras_event_weight_sum, nevents):
-        self.lfn = lfn
-        self.pfn = pfn
-        self.event_weight_sum = event_weight_sum
-        self.extras_event_weight_sum = extras_event_weight_sum
-        self.nevents = nevents
+    class Meta:
+        table_name = "analysis"
 
     def __str__(self):
-        return "%s"%(self.lfn)
+        return (
+            "{0.description}\n" "{cadi}" "{contact}" "  Number of associated results: {nresults:d}"
+        ).format(
+            self,
+            cadi=(f"  CADI line: {self.cadiline}\n" if self.cadiline else ""),
+            contact=(f"  Contact/Promotor: {self.contact}\n" if self.contact else ""),
+            nresults=self.results.count(),
+        )
 
-class Analysis(Storm):
-    __storm_table__ = "analysis"
-    analysis_id = Int(primary=True)
-    description = Unicode()
-    cadiline = Unicode()
-    contact = Unicode()
-    results = ReferenceSet(analysis_id, "Result.analysis_id")
 
-    def __init__(self,description):
-        self.description = description
+class Dataset(BaseModel):
+    """Table to represent one sample from DAS on which we run the analysis
 
-    def replaceBy(self, analysis):
-        self.description = analysis.description
-        self.cadiline = analysis.cadiline
-        self.contact = analysis.contact
-    
+    When creating a Dataset, at least the name and datatype (mc or data) attributes must be specified.
+    """
+
+    cmssw_release = CharField(null=True)
+    creation_time = DateTimeField(null=True)
+    id = AutoField(column_name="dataset_id")
+    datatype = CharField()
+    dsize = BigIntegerField(null=True)
+    energy = FloatField(null=True)
+    globaltag = CharField(null=True)
+    name = CharField(index=True)
+    nevents = IntegerField(null=True)
+    process = CharField(null=True)
+    user_comment = TextField(null=True)
+    xsection = FloatField(null=True)
+
+    class Meta:
+        table_name = "dataset"
+
+    @classmethod
+    def create(cls, **kwargs):
+        """Initialize a dataset by name and datatype. Other attributes may be null and should be set separately"""
+        for rK in ("name", "datatype"):
+            if rK not in kwargs:
+                raise RuntimeError(
+                    f"Argument '{rK}' is required to construct {self.__class__.__name__}"
+                )
+        if kwargs["datatype"] not in ("mc", "data"):
+            raise ValueError("dataset type must be mc or data, not {!r}".format(kwargs["datatype"]))
+        return super().create(**kwargs)
+
     def __str__(self):
-        result = "%s\n"%self.description
-        if self.cadiline is not None:
-            result += "  CADI line: %s\n"%self.cadiline
-        if self.contact is not None:
-            result += "  Contact/Promotor: %s\n"%self.contact
-        result += "  Number of associated results: %d"%self.results.count()
-        return result
+        return (
+            "Dataset #{0.id:d}:\n"
+            "  name: {0.name}\n"
+            "  process: {0.process}\n"
+            "  cross-section: {xsection}\n"
+            "  number of events: {nevents}\n"
+            "  size on disk: {dsize}\n"
+            "  CMSSW release: {0.cmssw_release}\n"
+            "  global tag: {0.globaltag}\n"
+            "  type (data or mc): {0.datatype}\n"
+            "  center-of-mass energy: {energy} TeV\n"
+            "  creation time (on DAS): {0.creation_time!s}\n"
+            "  comment: {0.user_comment}"
+        ).format(
+            self,
+            nevents=(f"{self.nevents:d}" if self.nevents is not None else "None"),
+            dsize=(f"{self.dsize:d}" if self.dsize is not None else "None"),
+            xsection=(f"{self.xsection:f}" if self.xsection is not None else "None"),
+            energy=(f"{self.energy:f}" if self.energy is not None else "None"),
+        )
 
+
+class Sample(BaseModel):
+    """Table to represent one processed sample, typically a PATtupe, skim, RDS, CP, etc.
+
+    When creating a Sample, at least the name, path, sampletype (any of Sample.SampleTypes)
+    and nevents_processed attributes must be specified.
+    """
+
+    author = TextField(null=True)
+    code_version = CharField(null=True)
+    creation_time = DateTimeField(
+        constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")], default=datetime.datetime.now
+    )
+    event_weight_sum = FloatField(null=True)
+    extras_event_weight_sum = TextField(null=True)
+    luminosity = FloatField(null=True)
+    name = CharField(index=True)
+    nevents = IntegerField(null=True)
+    nevents_processed = IntegerField(null=True)
+    normalization = FloatField(constraints=[SQL("DEFAULT 1")], default=1.0)
+    path = CharField()
+    processed_lumi = TextField(null=True)
+    id = AutoField(column_name="sample_id")
+    sampletype = CharField()
+    source_dataset = ForeignKeyField(Dataset, null=True, backref="samples")
+    source_sample = ForeignKeyField("self", null=True, backref="derived_samples")
+    user_comment = TextField(null=True)
+
+    class Meta:
+        table_name = "sample"
+
+    @property
+    def results(self):
+        return Result.select().join(SampleResult).join(Sample).where(Sample.id == self.id)
+
+    SampleTypes = ["PAT", "SKIM", "RDS", "LHCO", "NTUPLES", "HISTOS", "OTHER"]
+
+    @classmethod
+    def create(cls, **kwargs):
+        for rK in ("name", "path", "sampletype", "nevents_processed"):
+            if rK not in kwargs:
+                raise RuntimeError(
+                    f"Argument '{rK}' is required to construct {self.__class__.__name__}"
+                )
+        if kwargs["sampletype"] not in Sample.SampleTypes:
+            raise ValueError(
+                "sample type {} is unknown (need one of {})".format(
+                    kwargs["sampletype"], ", ".join(Sample.SampleTypes)
+                )
+            )
+        return super().create(**kwargs)
+
+    def removeFiles(self):
+        File.delete().where(File.sample == self).execute()
+
+    def getLuminosity(self):
+        """Computes the sample (effective) luminosity"""
+        if self.luminosity is not None:
+            return self.luminosity
+        else:
+            if self.source_dataset is not None:
+                if self.source_dataset.datatype == "MC":
+                    # for MC, it can be computed as Nevt/xsection
+                    if (
+                        self.nevents_processed is not None
+                        and self.source_dataset.xsection is not None
+                    ):
+                        return self.nevents_processed / self.source_dataset.xsection
+                else:
+                    # for DATA, it can only be obtained from the parent sample
+                    if self.source_sample is not None:
+                        return self.source_sample.luminosity
+        ## in cases not treated above it is impossible to compute a number, so return None
+
+    def __str__(self):
+        return (
+            "Sample #{0.id:d} (created on {0.creation_time!s} by {0.author})\n"
+            "  name: {0.name}\n"
+            "  path: {0.path}\n"
+            "  type: {0.sampletype}\n"
+            "  number of processed events: {0.nevents_processed:d}\n"
+            "  number of events: {nevents}\n"
+            "  normalization: {0.normalization}\n"
+            "  sum of event weights: {0.event_weight_sum}\n"
+            "{sumw_extras}"
+            "  (effective) luminosity: : {0.luminosity}\n"
+            "  {hasproclumi} processed luminosity sections information\n"
+            "  code version: {0.code_version}\n"
+            "  comment: {0.user_comment}\n"
+            "{source_dataset}"
+            "{source_sample}"
+            "  {files}"
+        ).format(
+            self,
+            nevents=(f"{self.nevents:d}" if self.nevents is not None else "none"),
+            sumw_extras=(
+                "  has extras sum of event weight\n" if self.extras_event_weight_sum else ""
+            ),
+            hasproclumi=("has" if self.processed_lumi else "does not have"),
+            source_dataset=(
+                f"  source dataset: {self.source_dataset.id:d}\n"
+                if self.source_dataset is not None
+                else ""
+            ),
+            source_sample=(
+                f"  source sample: {self.source_sample.id:d}\n"
+                if self.source_sample is not None
+                else ""
+            ),
+            files=(
+                "{:d} files: \n    - {}".format(
+                    self.files.count(),
+                    "\n    - ".join(
+                        (
+                            "{0.lfn} ({nevents} entries)".format(
+                                fl, nevents=f"{fl.nevents:d}" if fl.nevents is not None else "no"
+                            )
+                            for fl in self.files
+                        )
+                        if self.files.count() < 6
+                        else (
+                            ["{0.lfn} ({0.nevents:d} entries)".format(fl) for fl in self.files[:3]]
+                            + ["...", "{0.lfn} ({0.nevents:d} entries)".format(self.files[-1])]
+                        )
+                    ),
+                )
+                if self.id
+                else "no files"
+            ),
+        )
+
+
+class File(BaseModel):
+    """Table to represent a file (in a sample)
+
+    When creating a File, at least the lfn, pfn, event_weight_sum and nevents attributes must be specified.
+    """
+
+    event_weight_sum = FloatField(null=True)
+    extras_event_weight_sum = TextField(null=True)
+    id = BigAutoField()
+    lfn = CharField()  # Local file name: /store/
+    nevents = BigIntegerField(null=True)
+    pfn = CharField()  # Physical file name: srm:// or root://
+    sample = ForeignKeyField(Sample, backref="files")
+
+    class Meta:
+        table_name = "file"
+
+    @classmethod
+    def create(cls, **kwargs):
+        for rK in ("lfn", "pfn", "event_weight_sum", "nevents"):
+            if rK not in kwargs:
+                raise RuntimeError(
+                    f"Argument '{rK}' is required to construct {self.__class__.__name__}"
+                )
+        return super().create(**kwargs)
+
+    def __str__(self):
+        return self.lfn
+
+
+class Result(BaseModel):
+    """Table to represent one physics result, combining several samples.
+
+    When creating a Result, at least the path attribute must be specified.
+    """
+
+    analysis = ForeignKeyField(Analysis, null=True, backref="results")
+    author = TextField(null=True)
+    creation_time = DateTimeField(
+        constraints=[SQL("DEFAULT CURRENT_TIMESTAMP")], default=datetime.datetime.now
+    )
+    description = TextField(null=True)
+    elog = CharField(null=True)
+    path = CharField(index=True)
+    id = AutoField(column_name="result_id")
+
+    class Meta:
+        table_name = "result"
+
+    @property
+    def samples(self):
+        return Sample.select().join(SampleResult).join(Result).where(Result.id == self.id)
+
+    @classmethod
+    def create(cls, **kwargs):
+        for rK in ("path",):
+            if rK not in kwargs:
+                raise RuntimeError(
+                    f"Argument '{rK}' is required to construct {self.__class__.__name__}"
+                )
+        return super().create(**kwargs)
+
+    def __str__(self):
+        return (
+            "Result in {0.path}\n"
+            "  created on {0.creation_time!s} by {0.author}"
+            "{desc}"
+            "{elog}"
+        ).format(
+            self,
+            desc=(f"\n  part of analysis {self.analysis.description}" if self.analysis else ""),
+            elog=(f"\n  more details in {self.elog}" if self.elog else ""),
+        )
+
+
+class SampleResult(BaseModel):
+    result = ForeignKeyField(Result, column_name="result_id")
+    sample = ForeignKeyField(Sample, column_name="sample_id")
+
+    class Meta:
+        table_name = "sampleresult"
+        indexes = ((("sample", "result"), True),)
+        primary_key = CompositeKey("result", "sample")
+
+
+# all models, for binding in SAMADhiDB and import
+_models = [Analysis, Dataset, Sample, File, Result, SampleResult]
+__all__ += _models
+
+
+@contextmanager
+def SAMADhiDB(credentials="~/.samadhi"):
+    """create a database object and returns the db handle from peewee"""
+    cred = loadCredentials(path=credentials)
+    if cred.get("test", False):
+        import os.path
+
+        dbPath = cred["database"]
+        if not os.path.isabs(dbPath):
+            dbPath = os.path.join(
+                os.path.abspath(os.path.dirname(os.path.expanduser(credentials))), dbPath
+            )
+        db = SqliteDatabase(dbPath)
+    else:
+        db = MySQLDatabase(
+            cred["database"], user=cred["login"], password=cred["password"], host=cred["hostname"]
+        )
+    with db.bind_ctx(_models):
+        yield db
